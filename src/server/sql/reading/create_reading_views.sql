@@ -96,126 +96,22 @@ so the line reading functions can use them both in the same way.
 CREATE MATERIALIZED VIEW IF NOT EXISTS
 daily_readings_unit
 	AS SELECT
-		-- This gives the weighted average of the reading rates, defined as
-		-- sum(reading_rate * overlap_duration) / sum(overlap_duration)
-		r.meter_id AS meter_id,
-		CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			(sum(
-				(r.reading * 3600 / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)))) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / sum(
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			))
-		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-			(sum(
-				(r.reading * 3600 / u.sec_in_rate) -- Reading rate in per hour
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / sum(
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			))
-		END AS reading_rate,
-
-		-- The following code does the min/max for daily readings
-		CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-    		(max(( --Extract the maximum rate over each day
-				(r.reading * 3600 / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)))) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-					extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-						least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-						-
-						greatest(r.start_timestamp, gen.interval_start)
-					)
-			)))
-		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-			(max(( 
-				(r.reading * 3600 / u.sec_in_rate)
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			)))
-		END as max_rate,
-
-		CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-    		(min(( --Extract the minimum rate over each day
-				(r.reading * 3600 / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)))) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			)))
-		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-			(min((
-				(r.reading * 3600 / u.sec_in_rate) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			))) 
-		END as min_rate,
-		
-	tsrange(gen.interval_start, gen.interval_start + '1 day'::INTERVAL, '()') AS time_interval
-	FROM ((readings r
-	-- This sequence of joins takes the meter id to its unit and a unit.
-	INNER JOIN meters m ON r.meter_id = m.id)
+		h.meter_id AS meter_id,
+        avg(h.reading_rate) AS reading_rate,
+		max(h.max_rate) AS max_rate,
+		min(h.min_rate) AS min_rate,
+        
+    tsrange(gen.interval_start, gen.interval_start + '1 day'::INTERVAL, '()') AS time_interval
+	FROM ((hourly_readings_unit h
+	INNER JOIN meters m ON h.meter_id = m.id)
 	INNER JOIN units u ON m.unit_id = u.id)
 		CROSS JOIN LATERAL generate_series(
-			date_trunc('day', r.start_timestamp),
-			-- Subtract 1 interval width because generate_series is end-inclusive
-			date_trunc_up('day', r.end_timestamp) - '1 day'::INTERVAL,
-			'1 day'::INTERVAL
+			date_trunc('day', lower(h.time_interval)),
+			date_trunc_up('day', upper(h.time_interval)) - '1 hour'::INTERVAL,
+			'1 day'::INTERVAL 
 		) gen(interval_start)
-	GROUP BY r.meter_id, gen.interval_start, u.unit_represent
-	-- The order by ensures that the materialized view will be clustered in this way.
-	ORDER BY gen.interval_start, r.meter_id;
+	GROUP BY h.meter_id, gen.interval_start, u.unit_represent
+	ORDER BY gen.interval_start, h.meter_id;
 
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS
@@ -344,12 +240,42 @@ hourly_readings_unit
 
 
 -- TODO Check if needed and when to use as not done for hourly.
--- With the index added in 3D readings, this should be consider as part of the decision
--- on if this is needed.
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- We need a gist index to support the @> operation.
 CREATE INDEX if not exists idx_daily_readings_unit ON daily_readings_unit USING GIST(time_interval, meter_id);
 
+
+/* Group views that sum up the reading rates of all meters in a group */
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_daily_readings_unit
+	AS SELECT
+		gdm.group_id AS group_id,
+		sum(readings.reading_rate) AS reading_rate,
+		DATE_TRUNC('day', lower(readings.time_interval)) AS reading_day,
+		min(lower(readings.time_interval)) AS start_timestamp,
+		max(upper(readings.time_interval)) AS end_timestamp
+
+	FROM daily_readings_unit readings
+	INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
+	GROUP BY gdm.group_id, DATE_TRUNC('day', lower(readings.time_interval))
+	ORDER BY gdm.group_id, reading_day;
+CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(start_timestamp, end_timestamp, group_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_hourly_readings_unit
+	AS SELECT
+		gdm.group_id AS group_id,
+		sum(readings.reading_rate) AS reading_rate,
+		DATE_TRUNC('hour', lower(readings.time_interval)) AS reading_hour,
+		min(lower(readings.time_interval)) AS start_timestamp,
+		max(upper(readings.time_interval)) AS end_timestamp
+
+	FROM hourly_readings_unit readings
+	INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
+	GROUP BY gdm.group_id, DATE_TRUNC('hour', lower(readings.time_interval))
+	ORDER BY gdm.group_id, reading_hour;
+	
+CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(start_timestamp, end_timestamp, group_id);
 
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
@@ -520,6 +446,7 @@ DECLARE
 END;
 $$ LANGUAGE 'plpgsql';
 
+
 /*
 The following function determines the correct duration view to query from, and returns averaged readings from it.
 It is designed to return data for plotting line graphs. It works on groups.
@@ -605,19 +532,43 @@ BEGIN
 	END IF;
 	-- point_accuracy should either be daily or hourly at this point.
 
-	RETURN QUERY
-		SELECT
-			gdm.group_id AS group_id,
-			SUM(readings.reading_rate) AS reading_rate,
-			readings.start_timestamp,
-			readings.end_timestamp
-		-- point_accuracy not 'auto' so last two parameters not used so send -1.
-		FROM meter_line_readings_unit(meter_ids, graphic_unit_id, start_stamp, end_stamp, point_accuracy, -1, -1) readings
-		INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
-		INNER JOIN unnest(group_ids) gids(id) ON gdm.group_id = gids.id
-		GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp
-		-- This ensures the data is sorted
-		ORDER BY readings.start_timestamp ASC;
+	IF (point_accuracy = 'daily'::reading_line_accuracy) THEN
+		RETURN QUERY
+			SELECT
+				readings.group_id AS group_id,
+				readings.reading_rate AS reading_rate,
+				readings.start_timestamp AS start_timestamp,
+				readings.end_timestamp AS end_timestamp
+			FROM group_daily_readings_unit readings
+			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
+			-- This ensures the data is sorted
+			ORDER BY readings.start_timestamp ASC;
+	ELSIF (point_accuracy = 'hourly'::reading_line_accuracy) THEN
+		RETURN QUERY
+			SELECT
+				readings.group_id AS group_id,
+				readings.reading_rate AS reading_rate,
+				readings.start_timestamp AS start_timestamp,
+				readings.end_timestamp AS end_timestamp
+			FROM group_hourly_readings_unit readings
+			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
+			-- This ensures the data is sorted
+			ORDER BY readings.start_timestamp ASC;
+	END IF;
+
+	-- RETURN QUERY
+	-- 	SELECT
+	-- 		gdm.group_id AS group_id,
+	-- 		SUM(readings.reading_rate) AS reading_rate,
+	-- 		readings.start_timestamp,
+	-- 		readings.end_timestamp
+	-- 	-- point_accuracy not 'auto' so last two parameters not used so send -1.
+	-- 	FROM meter_line_readings_unit(meter_ids, graphic_unit_id, start_stamp, end_stamp, point_accuracy, -1, -1) readings
+	-- 	INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
+	-- 	INNER JOIN unnest(group_ids) gids(id) ON gdm.group_id = gids.id
+	-- 	GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp
+	-- 	-- This ensures the data is sorted
+	-- 	ORDER BY readings.start_timestamp ASC;
 END;
 $$ LANGUAGE 'plpgsql';
 
@@ -746,5 +697,13 @@ BEGIN
 		INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
 		INNER JOIN unnest(group_ids) gids(id) on gdm.group_id = gids.id
 		GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp;
+
+		-- SELECT
+		-- 	readings.group_id AS group_id,
+		-- 	(readings.reading_rate * 24) AS reading,
+		-- 	readings.start_timestamp,
+		-- 	readings.end_timestamp
+		-- FROM group_daily_readings_unit readings
+		-- INNER JOIN unnest(group_ids) gids(id) on readings.group_id = gids.id
 END;
 $$ LANGUAGE 'plpgsql';
