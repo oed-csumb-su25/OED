@@ -93,26 +93,7 @@ readings must be normalized by their time length. The flow/raw readings are alre
 so they are just averaged. The one table contains both types of readings but are now equivalent
 so the line reading functions can use them both in the same way.
  */
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-daily_readings_unit
-	AS SELECT
-		h.meter_id AS meter_id,
-        avg(h.reading_rate) AS reading_rate,
-		max(h.max_rate) AS max_rate,
-		min(h.min_rate) AS min_rate,
-        
-    tsrange(gen.interval_start, gen.interval_start + '1 day'::INTERVAL, '()') AS time_interval
-	FROM ((hourly_readings_unit h
-	INNER JOIN meters m ON h.meter_id = m.id)
-	INNER JOIN units u ON m.unit_id = u.id)
-		CROSS JOIN LATERAL generate_series(
-			date_trunc('day', lower(h.time_interval)),
-			date_trunc_up('day', upper(h.time_interval)) - '1 hour'::INTERVAL,
-			'1 day'::INTERVAL 
-		) gen(interval_start)
-	GROUP BY h.meter_id, gen.interval_start, u.unit_represent
-	ORDER BY gen.interval_start, h.meter_id;
-
+DROP MATERIALIZED VIEW IF EXISTS hourly_readings_unit;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS
 hourly_readings_unit
@@ -238,6 +219,27 @@ hourly_readings_unit
 	-- The order by ensures that the materialized view will be clustered in this way.
 	ORDER BY gen.interval_start, r.meter_id;
 
+DROP MATERIALIZED VIEW IF EXISTS daily_readings_unit;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+daily_readings_unit
+	AS SELECT
+		h.meter_id AS meter_id,
+        avg(h.reading_rate) AS reading_rate,
+		max(h.max_rate) AS max_rate,
+		min(h.min_rate) AS min_rate,
+        
+    tsrange(gen.interval_start, gen.interval_start + '1 day'::INTERVAL, '()') AS time_interval
+	FROM ((hourly_readings_unit h
+	INNER JOIN meters m ON h.meter_id = m.id)
+	INNER JOIN units u ON m.unit_id = u.id)
+		CROSS JOIN LATERAL generate_series(
+			date_trunc('day', lower(h.time_interval)),
+			date_trunc_up('day', upper(h.time_interval)) - '1 hour'::INTERVAL,
+			'1 day'::INTERVAL 
+		) gen(interval_start)
+	GROUP BY h.meter_id, gen.interval_start, u.unit_represent
+	ORDER BY gen.interval_start, h.meter_id;
 
 -- TODO Check if needed and when to use as not done for hourly.
 CREATE EXTENSION IF NOT EXISTS btree_gist;

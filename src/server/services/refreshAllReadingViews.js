@@ -6,28 +6,31 @@
 
 const { log } = require('../log');
 
-const refreshDailyReadingViews = require('./refreshReadingViews').refreshReadingViews;
-const { refreshHourlyReadingViews } = require('./refreshHourlyReadingViews');
+const { getConnection } = require('../db');
+const Reading = require('../models/Reading');
 
-/** 
-* @deprecated Please use the new refreshAllReadingViews() function
-		      where hourly readings are refreshed before daily readings
-**/
-async function refreshAllReadingViewsOld() {
 
-	log.info('Refreshing All Reading Views...');
-	await Promise.all([refreshDailyReadingViews(), refreshHourlyReadingViews()]);
-	log.info('...Views Refreshed!');
-}
+/*
+ * This function is changed from refreshing hourly and daily readings
+ * views in parallel using Promise.all() into one by one because
+ * daily readings calculation depends on hourly readings.
+*/
 
 async function refreshAllReadingViews() {
+	const conn = getConnection();
 
-	log.info('Refreshing All Reading Views...');
-	await refreshHourlyReadingViews();
-	await refreshDailyReadingViews();
-	log.info('...Views Refreshed!');
+	// Refresh hourly readings view
+
+	log.info('Refreshing Materialized Hourly Reading Views');
+	await Reading.refreshHourlyReadings(conn);
+	log.info('Materialized Hourly View Refreshed');
+
+	// Refresh daily readings view
+
+	log.info('Refreshing Materialized Daily Reading Views');
+	await Reading.refreshDailyReadings(conn);
+	log.info('Daily View Refreshed');
 }
 
 
 module.exports = { refreshAllReadingViews };
-module.exports = { refreshAllReadingViewsOld };

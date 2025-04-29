@@ -16,6 +16,11 @@ const Reading = require('../models/Reading');
 /**
  * Refreshes daily view.
  */
+
+/** 
+* @deprecated Please use do not use this function anymore
+**/
+
 async function refreshReadingViews() {
 	const conn = getConnection();
 

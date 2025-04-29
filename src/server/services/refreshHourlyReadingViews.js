@@ -9,6 +9,10 @@ const { log } = require('../log');
 const { getConnection } = require('../db');
 const Reading = require('../models/Reading');
 
+/** 
+* @deprecated Please use do not use this function anymore
+**/
+
 async function refreshHourlyReadingViews() {
 	const conn = getConnection();
 
