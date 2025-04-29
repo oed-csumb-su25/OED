@@ -245,38 +245,6 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE INDEX if not exists idx_daily_readings_unit ON daily_readings_unit USING GIST(time_interval, meter_id);
 
 
-/* Group views that sum up the reading rates of all meters in a group */
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_daily_readings_unit
-	AS SELECT
-		gdm.group_id AS group_id,
-		sum(readings.reading_rate) AS reading_rate,
-		DATE_TRUNC('day', lower(readings.time_interval)) AS reading_day,
-		min(lower(readings.time_interval)) AS start_timestamp,
-		max(upper(readings.time_interval)) AS end_timestamp
-
-	FROM daily_readings_unit readings
-	INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
-	GROUP BY gdm.group_id, DATE_TRUNC('day', lower(readings.time_interval))
-	ORDER BY gdm.group_id, reading_day;
-CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(start_timestamp, end_timestamp, group_id);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_hourly_readings_unit
-	AS SELECT
-		gdm.group_id AS group_id,
-		sum(readings.reading_rate) AS reading_rate,
-		DATE_TRUNC('hour', lower(readings.time_interval)) AS reading_hour,
-		min(lower(readings.time_interval)) AS start_timestamp,
-		max(upper(readings.time_interval)) AS end_timestamp
-
-	FROM hourly_readings_unit readings
-	INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
-	GROUP BY gdm.group_id, DATE_TRUNC('hour', lower(readings.time_interval))
-	ORDER BY gdm.group_id, reading_hour;
-	
-CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(start_timestamp, end_timestamp, group_id);
-
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
 It is designed to return data for plotting line graphs. It works on meters.
@@ -532,43 +500,19 @@ BEGIN
 	END IF;
 	-- point_accuracy should either be daily or hourly at this point.
 
-	IF (point_accuracy = 'daily'::reading_line_accuracy) THEN
-		RETURN QUERY
-			SELECT
-				readings.group_id AS group_id,
-				readings.reading_rate AS reading_rate,
-				readings.start_timestamp AS start_timestamp,
-				readings.end_timestamp AS end_timestamp
-			FROM group_daily_readings_unit readings
-			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
-			-- This ensures the data is sorted
-			ORDER BY readings.start_timestamp ASC;
-	ELSIF (point_accuracy = 'hourly'::reading_line_accuracy) THEN
-		RETURN QUERY
-			SELECT
-				readings.group_id AS group_id,
-				readings.reading_rate AS reading_rate,
-				readings.start_timestamp AS start_timestamp,
-				readings.end_timestamp AS end_timestamp
-			FROM group_hourly_readings_unit readings
-			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
-			-- This ensures the data is sorted
-			ORDER BY readings.start_timestamp ASC;
-	END IF;
-
-	-- RETURN QUERY
-	-- 	SELECT
-	-- 		gdm.group_id AS group_id,
-	-- 		SUM(readings.reading_rate) AS reading_rate,
-	-- 		readings.start_timestamp,
-	-- 		readings.end_timestamp
-	-- 	-- point_accuracy not 'auto' so last two parameters not used so send -1.
-	-- 	FROM meter_line_readings_unit(meter_ids, graphic_unit_id, start_stamp, end_stamp, point_accuracy, -1, -1) readings
-	-- 	INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
-	-- 	INNER JOIN unnest(group_ids) gids(id) ON gdm.group_id = gids.id
-	-- 	GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp
-	-- 	-- This ensures the data is sorted
-	-- 	ORDER BY readings.start_timestamp ASC;
+	RETURN QUERY
+		SELECT
+			gdm.group_id AS group_id,
+			SUM(readings.reading_rate) AS reading_rate,
+			readings.start_timestamp,
+			readings.end_timestamp
+		-- point_accuracy not 'auto' so last two parameters not used so send -1.
+		FROM meter_line_readings_unit(meter_ids, graphic_unit_id, start_stamp, end_stamp, point_accuracy, -1, -1) readings
+		INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
+		INNER JOIN unnest(group_ids) gids(id) ON gdm.group_id = gids.id
+		GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp
+		-- This ensures the data is sorted
+		ORDER BY readings.start_timestamp ASC;
 END;
 $$ LANGUAGE 'plpgsql';
 
@@ -635,7 +579,7 @@ BEGIN
 		--  dr.reading_rate is the weighted average reading rate per hour over the day.
 		-- Convert to a quantity by multiplying by the time in hours which is 24 since daily values.
 		-- Then convert the reading based on the conversion found below.
-		SUM(dr.reading_rate * 24) * c.slope + c.intercept AS reading,
+		sum(dr.reading_rate * 24) * c.slope + c.intercept AS reading,
 		bars.interval_start AS start_timestamp,
 		bars.interval_start + bar_width AS end_timestamp
 		FROM (((((daily_readings_unit dr
@@ -697,13 +641,5 @@ BEGIN
 		INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
 		INNER JOIN unnest(group_ids) gids(id) on gdm.group_id = gids.id
 		GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp;
-
-		-- SELECT
-		-- 	readings.group_id AS group_id,
-		-- 	(readings.reading_rate * 24) AS reading,
-		-- 	readings.start_timestamp,
-		-- 	readings.end_timestamp
-		-- FROM group_daily_readings_unit readings
-		-- INNER JOIN unnest(group_ids) gids(id) on readings.group_id = gids.id
 END;
 $$ LANGUAGE 'plpgsql';
