@@ -93,7 +93,6 @@ readings must be normalized by their time length. The flow/raw readings are alre
 so they are just averaged. The one table contains both types of readings but are now equivalent
 so the line reading functions can use them both in the same way.
  */
-DROP MATERIALIZED VIEW IF EXISTS hourly_readings_unit;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS
 hourly_readings_unit
@@ -218,8 +217,6 @@ hourly_readings_unit
 	GROUP BY r.meter_id, gen.interval_start, u.unit_represent
 	-- The order by ensures that the materialized view will be clustered in this way.
 	ORDER BY gen.interval_start, r.meter_id;
-
-DROP MATERIALIZED VIEW IF EXISTS daily_readings_unit;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS
 daily_readings_unit

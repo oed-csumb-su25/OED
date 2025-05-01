@@ -15,6 +15,8 @@ const Conversion = require('../../models/Conversion');
 const { insertStandardUnits, insertStandardConversions } = require('../../util/insertData');
 const { insertSpecialUnits, insertSpecialConversions } = require('../../data/automatedTestingData');
 const { redoCik } = require('../../services/graph/redoCik');
+// Readings should be accurate to many decimal places, but allow some wiggle room for database and javascript conversions
+const DELTA = 0.0000001;
 
 // TODO add tests that check flow readings.
 
@@ -460,6 +462,7 @@ mocha.describe('Line & bar Readings', () => {
 			graphicUnitId = (await Unit.getByName('MJ', conn)).id;
 		});
 
+
 		mocha.it('Hourly readings with two meters in a group', async () => {
 			const startOfDay = moment.utc('2018-01-01');
 
@@ -573,12 +576,14 @@ mocha.describe('Line & bar Readings', () => {
 				({ reading, start_timestamp, end_timestamp }) => ({ reading, start_timestamp: start_timestamp.valueOf(), end_timestamp: end_timestamp.valueOf() })
 			);
 
-			expect(readingsForMeterComparable).to.deep.equal([
-				{ reading: 100 * conversionSlope, start_timestamp: timestamp1.valueOf(), end_timestamp: timestamp2.valueOf() },
-				{ reading: 200 * conversionSlope, start_timestamp: timestamp2.valueOf(), end_timestamp: timestamp3.valueOf() },
-				{ reading: 300 * conversionSlope, start_timestamp: timestamp3.valueOf(), end_timestamp: timestamp4.valueOf() },
-				{ reading: 400 * conversionSlope, start_timestamp: timestamp4.valueOf(), end_timestamp: timestamp5.valueOf() }
-			]);
+			let start_timestamps = [timestamp1.valueOf(), timestamp2.valueOf(), timestamp3.valueOf(), timestamp4.valueOf()];
+			let end_timestamps = [timestamp2.valueOf(), timestamp3.valueOf(), timestamp4.valueOf(), timestamp5.valueOf()];
+
+			for (let i = 0; i < readingsForMeterComparable.length; i++) {
+				expect(readingsForMeterComparable[i].reading).to.be.closeTo((100 + (i * 100)) * conversionSlope, DELTA);
+				expect(readingsForMeterComparable[i].start_timestamp).to.be.closeTo(start_timestamps[i], DELTA);
+				expect(readingsForMeterComparable[i].end_timestamp).to.be.closeTo(end_timestamps[i], DELTA);
+			}
 		});
 
 		mocha.it('Retrieves the correct interval for a single meter and multiple days width', async () => {
@@ -601,10 +606,16 @@ mocha.describe('Line & bar Readings', () => {
 			const readingsForMeterComparable = readingsForMeter.map(
 				({ reading, start_timestamp, end_timestamp }) => ({ reading, start_timestamp: start_timestamp.valueOf(), end_timestamp: end_timestamp.valueOf() })
 			);
-			expect(readingsForMeterComparable).to.deep.equal([
-				{ reading: 300 * conversionSlope, start_timestamp: timestamp1.valueOf(), end_timestamp: timestamp3.valueOf() },
-				{ reading: 700 * conversionSlope, start_timestamp: timestamp3.valueOf(), end_timestamp: timestamp5.valueOf() }
-			]);
+
+			expect(readingsForMeterComparable[0].reading).to.be.closeTo(300 * conversionSlope, DELTA);
+			expect(readingsForMeterComparable[0].start_timestamp).to.be.closeTo(timestamp1.valueOf(), DELTA);
+			expect(readingsForMeterComparable[0].end_timestamp).to.be.closeTo(timestamp3.valueOf(), DELTA);
+
+
+			expect(readingsForMeterComparable[1].reading).to.be.closeTo(700 * conversionSlope, DELTA);
+			expect(readingsForMeterComparable[1].start_timestamp).to.be.closeTo(timestamp3.valueOf(), DELTA);
+			expect(readingsForMeterComparable[1].end_timestamp).to.be.closeTo(timestamp5.valueOf(), DELTA);
+
 		});
 
 		mocha.it('Retrieves the correct barchart readings for multiple meters for one day', async () => {
@@ -620,18 +631,22 @@ mocha.describe('Line & bar Readings', () => {
 			await Reading.refreshDailyReadings(conn);
 			const barReadings = await Reading.getMeterBarReadings([meter.id, meter2.id], graphicUnitId, timestamp1, timestamp2, 1, conn);
 			expect(barReadings).to.have.keys([meter.id.toString(), meter2.id.toString()]);
+
 			const readingsForMeterComparable = barReadings[meter.id].map(
 				({ reading, start_timestamp, end_timestamp }) => ({ reading, start_timestamp: start_timestamp.valueOf(), end_timestamp: end_timestamp.valueOf() })
 			);
 			const readingsForMeter2Comparable = barReadings[meter2.id].map(
 				({ reading, start_timestamp, end_timestamp }) => ({ reading, start_timestamp: start_timestamp.valueOf(), end_timestamp: end_timestamp.valueOf() })
 			);
-			expect(readingsForMeterComparable).to.deep.equal([
-				{ reading: 100 * conversionSlope, start_timestamp: timestamp1.valueOf(), end_timestamp: timestamp2.valueOf() }
-			]);
-			expect(readingsForMeter2Comparable).to.deep.equal([
-				{ reading: 1 * conversionSlope, start_timestamp: timestamp1.valueOf(), end_timestamp: timestamp2.valueOf() }
-			]);
+
+			expect(readingsForMeterComparable[0].reading).to.be.closeTo(100 * conversionSlope, DELTA);
+			expect(readingsForMeterComparable[0].start_timestamp).to.be.closeTo(timestamp1.valueOf(), DELTA);
+			expect(readingsForMeterComparable[0].end_timestamp).to.be.closeTo(timestamp2.valueOf(), DELTA);
+
+			expect(readingsForMeter2Comparable[0].reading).to.be.closeTo(1 * conversionSlope, DELTA);
+			expect(readingsForMeter2Comparable[0].start_timestamp).to.be.closeTo(timestamp1.valueOf(), DELTA);
+			expect(readingsForMeter2Comparable[0].end_timestamp).to.be.closeTo(timestamp2.valueOf(), DELTA);
+
 		});
 
 		// TODO groups too
