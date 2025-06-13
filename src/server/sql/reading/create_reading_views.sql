@@ -465,7 +465,7 @@ DECLARE
 				FROM (((readings r
 				INNER JOIN meters m ON m.id = current_meter_id)
 				INNER JOIN units u ON m.unit_id = u.id)
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
+				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id AND tsrange(c.start_time, c.end_time, '()') && hourly.time_interval)
 				WHERE lower(requested_range) <= r.start_timestamp AND r.end_timestamp <= upper(requested_range) AND r.meter_id = current_meter_id
 				-- This ensures the data is sorted
 				ORDER BY r.start_timestamp ASC;
