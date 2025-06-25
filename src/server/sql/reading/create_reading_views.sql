@@ -243,6 +243,98 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- We need a gist index to support the @> operation.
 CREATE INDEX if not exists idx_daily_readings_unit ON daily_readings_unit USING GIST(time_interval, meter_id);
 
+/*
+	The following function takes an integer for group id and return an array of all unit ids which are compatible
+	to all child meters in that group.
+*/
+CREATE OR REPLACE FUNCTION get_graphic_unit (
+	meters_group_id INTEGER
+)
+RETURNS INTEGER[] AS $$
+DECLARE
+	src_ids INTEGER[];
+	dest_ids INTEGER[];
+	child_meters_unit_ids INTEGER[];
+	unit_ids INTEGER[] := '{}';
+	unit_id INTEGER;
+	curr_src_id INTEGER;
+	
+BEGIN
+	-- get the units of all child meters in group
+	SELECT array_agg(DISTINCT m.unit_id) INTO child_meters_unit_ids
+	FROM groups_deep_meters gdm
+	JOIN meters m ON m.id = gdm.meter_id
+	WHERE gdm.group_id = meters_group_id;
+
+	-- get all possible destination units
+	SELECT array_agg(u.id) INTO dest_ids
+	FROM units u JOIN cik c 
+	ON u.id = c.destination_id; 
+
+	-- determine the compatible unit by checking if the array of all corresponding source unit 
+	-- to a destination unit contains all child meters' units 
+	FOREACH unit_id IN ARRAY dest_ids
+	LOOP
+		BEGIN
+			SELECT array_agg(source_id) INTO src_ids
+			FROM cik WHERE destination_id = unit_id;
+
+	 		-- append each compatible unit id once into array
+			IF src_ids @> child_meters_unit_ids
+			THEN 
+				IF NOT (unit_id = ANY (unit_ids))
+				THEN
+					unit_ids := array_append(unit_ids, unit_id);
+				END IF;
+			END IF;
+		END;
+    END LOOP;
+
+	RETURN unit_ids;
+END;
+$$ LANGUAGE 'plpgsql';
+
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_daily_readings_unit
+	AS SELECT
+		gdm.group_id,
+		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		dr.time_interval,
+		gu.graphic_unit_id AS graphic_unit_id
+	
+	FROM (((((daily_readings_unit dr
+	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id)
+	INNER JOIN meters m ON m.id = dr.meter_id)
+	INNER JOIN units u ON m.unit_id = u.id)
+	INNER JOIN cik c on c.source_id = m.unit_id)
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
+	-- group meter readings of each group on the the same day, of the same graphic unit
+	GROUP BY gdm.group_id, gu.graphic_unit_id, dr.time_interval -- order by time interval instead
+	ORDER BY dr.time_interval, gu.graphic_unit_id, gdm.group_id;
+
+-- Index on interval, graphic_unit_id, group_id
+CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(time_interval, graphic_unit_id, group_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_hourly_readings_unit
+	AS SELECT
+		gdm.group_id,
+		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		hr.time_interval,
+		gu.graphic_unit_id AS graphic_unit_id
+	
+	FROM (((((hourly_readings_unit hr
+	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id)
+	INNER JOIN meters m ON m.id = hr.meter_id)
+	INNER JOIN units u ON m.unit_id = u.id)
+	INNER JOIN cik c on c.source_id = m.unit_id)
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
+	-- group meter readings of each group on the the same hour, of the same graphic unit
+	GROUP BY gdm.group_id, gu.graphic_unit_id, hr.time_interval
+	ORDER BY gdm.group_id;
+
+CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
 
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
@@ -499,19 +591,35 @@ BEGIN
 	END IF;
 	-- point_accuracy should either be daily or hourly at this point.
 
-	RETURN QUERY
-		SELECT
-			gdm.group_id AS group_id,
-			SUM(readings.reading_rate) AS reading_rate,
-			readings.start_timestamp,
-			readings.end_timestamp
-		-- point_accuracy not 'auto' so last two parameters not used so send -1.
-		FROM meter_line_readings_unit(meter_ids, graphic_unit_id, start_stamp, end_stamp, point_accuracy, -1, -1) readings
-		INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
-		INNER JOIN unnest(group_ids) gids(id) ON gdm.group_id = gids.id
-		GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp
-		-- This ensures the data is sorted
-		ORDER BY readings.start_timestamp ASC;
+	IF (point_accuracy = 'daily'::reading_line_accuracy) THEN
+		RETURN QUERY
+			SELECT
+				readings.group_id,
+				readings.reading_rate,
+				lower(readings.time_interval) AS start_timestamp,
+				upper(readings.time_interval) AS end_timestamp
+
+			FROM group_daily_readings_unit readings
+			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
+			WHERE readings.graphic_unit_id = unit_id
+			AND tsrange(start_stamp, end_stamp, '[]') @> readings.time_interval
+			-- This ensures the data is sorted
+			ORDER BY readings.time_interval ASC;
+
+	ELSIF (point_accuracy = 'hourly'::reading_line_accuracy) THEN
+		RETURN QUERY
+			SELECT
+				readings.group_id AS group_id,
+				readings.reading_rate AS reading_rate,
+				lower(readings.time_interval) AS start_timestamp,
+				upper(readings.time_interval) AS end_timestamp
+			FROM group_hourly_readings_unit readings
+			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
+			WHERE readings.graphic_unit_id = unit_id
+			AND tsrange(start_stamp, end_stamp, '[]') @> readings.time_interval
+			-- This ensures the data is sorted
+			ORDER BY readings.time_interval ASC;
+	END IF;
 END;
 $$ LANGUAGE 'plpgsql';
 
@@ -632,13 +740,23 @@ BEGIN
 
 	RETURN QUERY
 		SELECT
-			gdm.group_id AS group_id,
-			SUM(readings.reading) AS reading,
-			readings.start_timestamp,
-			readings.end_timestamp
-		FROM meter_bar_readings_unit(meter_ids, graphic_unit_id, bar_width_days, start_stamp, end_stamp) readings
-		INNER JOIN groups_deep_meters gdm ON readings.meter_id = gdm.meter_id
-		INNER JOIN unnest(group_ids) gids(id) on gdm.group_id = gids.id
-		GROUP BY gdm.group_id, readings.start_timestamp, readings.end_timestamp;
+		-- readings.reading_rate is the weighted average reading rate per hour over the day.
+		-- Convert to a quantity by multiplying by the time in hours which is 24 since daily values.
+		-- reading is the sum of all readings within one bar.
+		readings.group_id AS group_id,
+		SUM(readings.reading_rate * 24) AS reading,
+		bars.interval_start AS start_timestamp,
+		bars.interval_start + bar_width AS end_timestamp
+
+		FROM (((group_daily_readings_unit readings
+			INNER JOIN generate_series(real_start_stamp, real_end_stamp, bar_width) bars(interval_start)
+				ON tsrange(bars.interval_start, bars.interval_start + bar_width, '[]') @> readings.time_interval)
+			-- Don't return bar data if raw since cannot sum.
+			INNER JOIN units u ON readings.graphic_unit_id = u.id AND u.unit_represent != 'raw'::unit_represent_type)
+			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id)
+			-- Use the readings in the passed in graphic unit
+			WHERE readings.graphic_unit_id = unit_id 
+
+			GROUP BY readings.group_id, bars.interval_start;
 END;
 $$ LANGUAGE 'plpgsql';
