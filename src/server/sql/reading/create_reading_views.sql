@@ -521,7 +521,7 @@ in the meter function that is equivalent.
  */
 CREATE OR REPLACE FUNCTION group_line_readings_unit (
 	group_ids INTEGER[],
-	graphic_unit_id INTEGER,
+	requested_graphic_unit_id INTEGER,
 	start_stamp TIMESTAMP,
 	end_stamp TIMESTAMP,
 	point_accuracy reading_line_accuracy,
@@ -601,7 +601,7 @@ BEGIN
 
 			FROM group_daily_readings_unit readings
 			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
-			WHERE readings.graphic_unit_id = unit_id
+			WHERE readings.graphic_unit_id = requested_graphic_unit_id
 			AND tsrange(start_stamp, end_stamp, '[]') @> readings.time_interval
 			-- This ensures the data is sorted
 			ORDER BY readings.time_interval ASC;
@@ -615,7 +615,7 @@ BEGIN
 				upper(readings.time_interval) AS end_timestamp
 			FROM group_hourly_readings_unit readings
 			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id
-			WHERE readings.graphic_unit_id = unit_id
+			WHERE readings.graphic_unit_id = requested_graphic_unit_id
 			AND tsrange(start_stamp, end_stamp, '[]') @> readings.time_interval
 			-- This ensures the data is sorted
 			ORDER BY readings.time_interval ASC;
@@ -719,7 +719,7 @@ end_timestamp: The end timestamp of the data to return.
  */
 CREATE OR REPLACE FUNCTION group_bar_readings_unit (
 	group_ids INTEGER[],
-	graphic_unit_id INTEGER,
+	requested_graphic_unit_id INTEGER,
 	bar_width_days INTEGER,
 	start_stamp TIMESTAMP,
 	end_stamp TIMESTAMP
@@ -755,7 +755,7 @@ BEGIN
 			INNER JOIN units u ON readings.graphic_unit_id = u.id AND u.unit_represent != 'raw'::unit_represent_type)
 			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id)
 			-- Use the readings in the passed in graphic unit
-			WHERE readings.graphic_unit_id = unit_id 
+			WHERE readings.graphic_unit_id = requested_graphic_unit_id 
 
 			GROUP BY readings.group_id, bars.interval_start;
 END;

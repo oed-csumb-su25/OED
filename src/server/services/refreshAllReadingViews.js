@@ -30,6 +30,11 @@ async function refreshAllReadingViews() {
 	log.info('Refreshing Materialized Daily Reading Views');
 	await Reading.refreshDailyReadings(conn);
 	log.info('Daily View Refreshed');
+
+	// Refresh group views
+	log.info('Refreshing Group Reading Views...');
+	await Promise.all([Reading.refreshGroupDailyReadings(), Reading.refreshGroupHourlyReadings()]);
+	log.info('...Group Views Refreshed!');
 }
 
 
