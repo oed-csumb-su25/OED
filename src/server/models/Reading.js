@@ -103,7 +103,6 @@ class Reading {
 	 * @returns {Promise<void>}
 	 */
 	static refreshGroupDailyReadings(conn) {
-		// This can't be a function because you can't call REFRESH inside a function
 		return conn.none('REFRESH MATERIALIZED VIEW group_daily_readings_unit');
 	}
 
@@ -114,7 +113,6 @@ class Reading {
 	 * @returns {Promise<void>}
 	 */
 	static refreshGroupHourlyReadings(conn) {
-		// This can't be a function because you can't call REFRESH inside a function
 		return conn.none('REFRESH MATERIALIZED VIEW group_hourly_readings_unit');
 	}
 
