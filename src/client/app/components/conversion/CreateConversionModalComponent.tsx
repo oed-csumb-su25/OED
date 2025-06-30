@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/indent */
 /* This Source Code Form is subject to the terms of the Mozilla Public
 * License, v. 2.0. If a copy of the MPL was not distributed with this
 * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -46,7 +47,9 @@ export default function CreateConversionModalComponent() {
 	const handleShow = () => setShowModal(true);
 
 	// Handlers for each type of input change
-	const [conversionState, setConversionState] = useState(defaultValues);
+	const [conversionState, setConversionState] = useState({
+		...defaultValues
+  });
 
 	// If the currently selected conversion is valid
 	const [validConversion, reason] = useAppSelector(state => selectIsValidConversion(state, conversionState));
@@ -76,6 +79,17 @@ export default function CreateConversionModalComponent() {
 		} else {
 			setConversionState(state => ({ ...state, [e.target.name]: Number(e.target.value) }));
 		}
+	};
+
+  const handlePatternChange = (e: React.ChangeEvent<any>) => {
+		const selectedPattern = (e.target as HTMLSelectElement).value;
+
+		setConversionState(prev => ({
+			...prev,
+			pattern: selectedPattern,
+			slope: selectedPattern === 'No Pattern' ? prev.slope : 0,
+			intercept: selectedPattern === 'No Pattern' ? prev.intercept : 0
+		}));
 	};
 	/* End State */
 
@@ -248,6 +262,18 @@ export default function CreateConversionModalComponent() {
 								</FormFeedback>
 							)}
 						</FormGroup>
+						{/* Note input for overall conversion*/}
+						<FormGroup>
+							<Label for='note'>{translate('note')}</Label>
+							<Input
+								id='note'
+								name='note'
+								type='textarea'
+								onChange={e => handleStringChange(e)}
+								value={conversionState.note} />
+						</FormGroup>
+						{/*Initial conversion*/}
+						<h5 className="mt-3 mb-2">Initial Conversion</h5>
 						<Row xs='1' lg='2'>
 							<Col>
 								{/* Slope input*/}
@@ -258,7 +284,8 @@ export default function CreateConversionModalComponent() {
 										name='slope'
 										type='number'
 										value={conversionState.slope}
-										onChange={e => handleNumberChange(e)} />
+										onChange={e => handleNumberChange(e)}
+										disabled={conversionState.pattern !== 'No Pattern'} />
 								</FormGroup>
 							</Col>
 							<Col>
@@ -270,15 +297,34 @@ export default function CreateConversionModalComponent() {
 										name='intercept'
 										type='number'
 										value={conversionState.intercept}
-										onChange={e => handleNumberChange(e)} />
+										onChange={e => handleNumberChange(e)}
+										disabled={conversionState.pattern !== 'No Pattern'} />
 								</FormGroup>
 							</Col>
 						</Row>
-						{/* Note input*/}
+						{/* Pattern dropdown for weekly pattern or no pattern */}
+						<FormGroup>
+							<Label for='pattern'>{translate('conversion.pattern')}</Label>
+							<Input
+								id='pattern'
+								name='pattern'
+								type='select'
+								value={conversionState.pattern}
+								onChange={handlePatternChange}>
+								{/* <option value='No Pattern'>No Pattern</option>
+								{defaultValues.weeklyPatterns?.map(p => (
+									<option key={p} value={p}>{p}</option>
+								))} */}
+								<option value='No Pattern'>No Pattern</option>
+								<option value='Pattern 1'>Pattern 1</option>
+								<option value='Pattern 2'>Pattern 2</option>
+							</Input>
+						</FormGroup>
+						{/* Note input for initial conversion*/}
 						<FormGroup>
 							<Label for='note'>{translate('note')}</Label>
 							<Input
-								id='note'
+								id='note2'
 								name='note'
 								type='textarea'
 								onChange={e => handleStringChange(e)}
