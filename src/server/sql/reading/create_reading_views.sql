@@ -354,6 +354,23 @@ meter_hourly_readings_unit
 	GROUP BY m.id, graphic_unit_id, hr.time_interval
 	ORDER BY meter_id;
 
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+meter_daily_readings_unit
+	AS SELECT
+		m.id AS meter_id,
+		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		sum(dr.min_rate * c.slope + c.intercept) AS min_rate,
+		sum(dr.max_rate * c.slope + c.intercept) AS max_rate,
+		dr.time_interval,
+		c.destination_id AS graphic_unit_id
+	
+	FROM daily_readings_unit dr
+	INNER JOIN meters m ON m.id = dr.meter_id
+	INNER JOIN units u ON m.unit_id = u.id
+	INNER JOIN cik c on c.source_id = m.unit_id
+	GROUP BY m.id, graphic_unit_id, dr.time_interval
+	ORDER BY m.id, graphic_unit_id, dr.time_interval;
+
 
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
@@ -662,23 +679,19 @@ DECLARE
 			RETURN QUERY
 				SELECT
 					daily.meter_id AS meter_id,
-					-- Convert the reading based on the conversion found below.
-					-- Daily readings are already averaged correctly into a rate.
-					daily.reading_rate * c.slope + c.intercept as reading_rate,
-					daily.min_rate * c.slope + c.intercept AS min_rate,
-					daily.max_rate * c.slope + c.intercept AS max_rate,
+					daily.reading_rate AS reading_rate,
+					daily.min_rate AS min_rate,
+					daily.max_rate AS max_rate,
 					lower(daily.time_interval) AS start_timestamp,
 					upper(daily.time_interval) AS end_timestamp
-				FROM ((daily_readings_unit daily
-				-- Get all the meter_ids in the passed array of meters.
-				-- This sequence of joins takes the meter id to its unit and a unit.
-				INNER JOIN meters m ON m.id = current_meter_id)
-				-- This is getting the conversion for the meter and unit to graph.
-				-- The slope and intercept are used above the transform the reading to the desired unit.
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = g_unit_id)
-				WHERE requested_range @> time_interval AND daily.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY start_timestamp ASC;
+				FROM
+					meter_daily_readings_unit AS daily
+				WHERE
+					requested_range @> daily.time_interval
+					AND daily.meter_id = current_meter_id
+					AND daily.graphic_unit_id = g_unit_id
+				ORDER BY 
+					start_timestamp ASC;
 		END IF;
 		current_meter_index := current_meter_index + 1;
 	END LOOP;
