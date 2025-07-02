@@ -9,12 +9,15 @@ import { GroupChildren, GroupData } from '../../types/redux/groups';
 import { showErrorNotification } from '../../utils/notifications';
 import { selectIsAdmin } from '../slices/currentUserSlice';
 import { baseApi } from './baseApi';
+import { setRefresingReadings } from '../../redux/slices/appStateSlice';
+
 
 export const groupsAdapter = createEntityAdapter<GroupData>({
 	sortComparer: (groupA, groupB) => groupA.name?.localeCompare(groupB.name, undefined, { sensitivity: 'accent' })
 });
 export const groupsInitialState = groupsAdapter.getInitialState();
 export type GroupDataState = EntityState<GroupData, number>;
+
 
 export const groupsApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
@@ -67,13 +70,53 @@ export const groupsApi = baseApi.injectEndpoints({
 			}),
 			invalidatesTags: ['GroupData', 'GroupChildrenData']
 		}),
-		editGroup: builder.mutation<void, Omit<GroupData, 'deepMeters'>>({
+		// editGroup: builder.mutation<void, Omit<GroupData, 'deepMeters'>, { shouldRefreshGroupsDeepMetersView: boolean, shouldRefreshReadingViews: boolean }>({
+		editGroup: builder.mutation<void, { editedGroup: Omit<GroupData, 'deepMeters'>, shouldRefreshGroupsDeepMetersView: boolean }>({
 			query: group => ({
 				url: 'api/groups/edit',
 				method: 'PUT',
 				body: group
 			}),
+			onQueryStarted: async ({ shouldRefreshGroupsDeepMetersView }, { queryFulfilled, dispatch }) => {
+							await queryFulfilled;
+
+							if (shouldRefreshGroupsDeepMetersView) {
+								dispatch(groupsApi.endpoints.refresh.initiate(
+									{
+										refreshGroupsDeepMetersView: true,
+										refreshReadingViews: true
+									}
+								));
+							} else {
+								dispatch(groupsApi.util.invalidateTags(['GroupData', 'GroupChildrenData']));
+							}
+							// api.queryFulfilled
+							// 	.then(() => {
+							// 		api.dispatch(
+							// 			groupsApi.endpoints.refresh.initiate({
+							// 				refreshGroupsDeepMetersView: shouldRefreshGroupsDeepMetersView,
+							// 				refreshReadingViews: shouldRefreshReadingViews
+							// 			}));
+							// 	});
+						},
 			invalidatesTags: ['GroupData', 'GroupChildrenData']
+		}),
+		// New endpoint to refresh groups deep meters
+		refresh: builder.mutation<void, { refreshGroupsDeepMetersView: boolean, refreshReadingViews: boolean }>({
+			query: ({ refreshGroupsDeepMetersView, refreshReadingViews }) => ({
+				url: 'api/groups/refresh',
+				method: 'POST',
+				body: { refreshGroupsDeepMetersView, refreshReadingViews }
+			}),
+			invalidatesTags: ['GroupData', 'GroupChildrenData', 'Readings'],
+			onQueryStarted: async (_arg, { dispatch, queryFulfilled} ) => {
+				dispatch(setRefresingReadings(true));       
+				try {
+					await queryFulfilled;
+				} finally {
+					dispatch(setRefresingReadings(false));
+				}
+			}
 		}),
 		deleteGroup: builder.mutation<void, number>({
 			query: groupId => ({
