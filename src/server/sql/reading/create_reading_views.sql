@@ -900,6 +900,73 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 
+-- New version of meter_bar_readings_unit that uses the new meter_daily_readings_unit view.
+CREATE OR REPLACE FUNCTION meter_bar_readings_unit_v2 (
+	meter_ids INTEGER[],
+	g_unit_id INTEGER, -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
+	bar_width_days INTEGER,
+	start_stamp TIMESTAMP,
+	end_stamp TIMESTAMP
+)
+	RETURNS TABLE(meter_id INTEGER, reading FLOAT, start_timestamp TIMESTAMP, end_timestamp TIMESTAMP)
+AS $$
+DECLARE
+	bar_width INTERVAL;
+	real_tsrange TSRANGE;
+	real_start_stamp TIMESTAMP;
+	real_end_stamp TIMESTAMP;
+	num_bars INTEGER;
+BEGIN
+	-- This is how wide (time interval) for each bar.
+	bar_width := INTERVAL '1 day' * bar_width_days;
+	/*
+	This rounds to the day for the start and end times requested. It then shrinks in case the actual readings span
+	less time than the request. This can commonly happen when you get +/-infinity for all readings available.
+	It uses the day reading view because that is faster than using all the readings.
+	This has an issue associated with it:
+
+	1) If the readings at the start/end have a partial day then it shows up as a day. The original code did:
+	real_tsrange := shrink_tsrange_to_real_readings(tsrange(date_trunc_up('day', start_stamp), date_trunc('day', end_stamp)));
+	and did not have this issue since it used the readings and then truncated up/down.
+	A more general solution would be to change the daily (and hourly) view so it does not include partial ones at start/end.
+	This would fix this case and also impact other uses in what seems a positive way.
+	Note this does not address that missing days in a bar width get no value so the bar will likely read low.
+	*/
+	real_tsrange := shrink_tsrange_to_meters_by_day(tsrange(start_stamp, end_stamp), meter_ids);
+	-- Get the actual start/end time rounded to the nearest day from the range.
+	real_start_stamp := lower(real_tsrange);
+	real_end_stamp := upper(real_tsrange);
+	-- This gives the number of whole bars that will fit within the real start/end times. For example, if the number of days
+	-- between start and end is 14 days and the bar width is 3 days then you get 4.
+	num_bars := floor(extract(EPOCH FROM real_end_stamp - real_start_stamp) / extract(EPOCH FROM bar_width));
+	-- This makes the full bars go from the end time to as far back in time as possible.
+	-- This means that if some time was dropped to get full bars it is at the start of the interval.
+	-- It was felt that the most recent readings are the most important so drop older ones.
+	-- It also helps with maps since they use the latest bar for their value.
+	real_start_stamp := real_end_stamp - (num_bars *  bar_width);
+	-- Since the inner join on the generate_series adds the bar_width, we need to back up the
+	-- end timestamp by that amount so it stops at the desired end timestamp.
+	real_end_stamp := real_end_stamp - bar_width;
+
+	RETURN QUERY
+		SELECT 
+		mdr.meter_id AS meter_id,
+		sum(mdr.reading_rate * 24)  AS reading,
+		bars.interval_start AS start_timestamp,
+		bars.interval_start + bar_width AS end_timestamp
+		FROM meter_daily_readings_unit mdr
+		INNER JOIN generate_series(real_start_stamp, real_end_stamp, bar_width) bars(interval_start)
+				ON tsrange(bars.interval_start, bars.interval_start + bar_width, '[]') @> mdr.time_interval
+		INNER JOIN unnest(meter_ids) meters(id) ON mdr.meter_id = meters.id
+		INNER JOIN meters m ON m.id = meters.id
+		INNER JOIN units u ON m.unit_id = u.id AND u.unit_represent != 'raw'::unit_represent_type
+		WHERE mdr.graphic_unit_id = g_unit_id
+		GROUP BY mdr.meter_id, bars.interval_start;
+
+END;
+$$ LANGUAGE 'plpgsql';
+
+
 /*
 The following function returns data for plotting bar graphs. It works on groups.
 It should not be used on raw readings.
