@@ -1,0 +1,1 @@
+DELETE FROM week_pattern WHERE id = ${id};
