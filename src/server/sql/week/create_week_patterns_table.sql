@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS week_pattern (
+CREATE TABLE IF NOT EXISTS week_patterns (
     id SERIAL PRIMARY KEY,
     week_name TEXT,
     note TEXT,

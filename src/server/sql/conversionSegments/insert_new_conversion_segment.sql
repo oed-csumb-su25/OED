@@ -1,0 +1,2 @@
+INSERT INTO conversion_segments(id, source_id, destination_id, week_patterns_id, slope, intercept, start_time, end_time, note)
+VALUES (${id}, ${source_id}, ${destination_id}, ${week_patterns_id}, ${slope}, ${intercept}, ${start_time}, ${end_time}, ${note});
