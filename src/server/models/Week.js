@@ -74,4 +74,32 @@ class Week {
     static async delete(conn, id) {
         return conn.none(sqlFile('week/delete_week_pattern.sql'), {id});
     }
+    /**
+     * Returns a promise to insert this week into the database
+     * @param conn The database connection to use.
+     * @returns {Promise.<>}
+     */
+    async insert(conn) {
+        const week = this;
+        if (week.id !== undefined) {
+            throw new Error('Attempted to insert a week that already has an ID');
+        }
+        
+        const resp = await conn.one(sqlFile('week/insert_new_week_pattern.sql'), week);
+        this.id = resp.id;
+    }
+
+    /**
+     * Returns a promise to update an existing day in the database.
+     * @param conn the connection to use.
+     * @returns {Promise.<>}
+     */
+    async update(conn) {
+        const week = this;
+        if (week.id === undefined) {
+            throw new Error('Attempted to update a week with no ID');
+        }
+        await conn.none(sqlFile('week/update_week_pattern.sql'), week);
+    }
+
 } module.exports = Week;
