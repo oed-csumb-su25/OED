@@ -3,9 +3,9 @@ const sqlFile = database.sqlFile;
 
 class Day {
     /**
-     * @param {*} id This day_pattern's id.
+     * @param {*} id This day_patterns' id.
      * @param {*} day_name This day_pattern's name.
-     * @param {*} note This day_pattern's note.
+     * @param {*} note Comments by the admin.
      */
     constructor(id, day_name, note) {
         this.id = id;
