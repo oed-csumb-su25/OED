@@ -1,4 +1,3 @@
-const { start } = require('repl');
 const database = require('./database');
 const sqlFile = database.sqlFile;
 
