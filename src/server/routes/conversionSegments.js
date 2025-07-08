@@ -6,10 +6,57 @@ const { success, failure } = require('./response');
 const validate = require('jsonschema').validate;
 
 const router = express.Router();
+const validConversionSegment = {
+    type: 'object',
+    required: ['sourceId', 'destinationId'],
+    properties: {
+        sourceId: {
+            type: 'number',
+            // Do not allow negatives for now
+            minimum: 0
+        },
+        destinationId: {
+            type: 'number',
+            // Do not allow negatives for now
+            minimum: 0
+        },
+        weekPatternsId: {
+            type: 'number',
+            minimum: 0
+        },
+        slope: {
+            type: 'number'
+        },
+        intercept: {
+            type: 'number'
+        },
+        startTime: {
+            type: 'string',
+            format: 'date-time'
+        },
+        endTime: {
+            type: 'string',
+            format: 'date-time'
+        },
+        note: {
+            oneOf: [
+                {type: 'string'},
+                {type: 'null'}
+            ]
+        }
+    }
+};
 
 function formatConversionSegmentForResponse(item) {
 	return {
-		sourceId: item.sourceId, destinationId: item.destinationId, week_patterns_id: item.week_patterns_id, slope: item.slope, intercept: item.intercept, start_time: item.start_time, end_time: item.end_time, note: item.note
+		sourceId: item.sourceId, 
+        destinationId: item.destinationId, 
+        weekPatternsId: item.week_patterns_id, 
+        slope: item.slope, 
+        intercept: item.intercept, 
+        startTime: item.start_time, 
+        endTime: item.end_time, 
+        note: item.note
 	};
 }
 
@@ -30,44 +77,6 @@ router.get('/', async (req, res) => {
  * Route for POST, edit conversion segment.
  */
 router.post('/edit', async (req, res) => {
-    const validConversionSegment = {
-        type: 'object',
-        required: ['sourceId', 'destinationId'],
-        properties: {
-            sourceId: {
-                type: 'number',
-                // Do not allow negatives for now
-                minimum: 0
-            },
-            destinationId: {
-                type: 'number',
-                // Do not allow negatives for now
-                minimum: 0
-            },
-            weekPatternsId: {
-                
-            },
-            slope: {
-                type: 'float'
-            },
-            intercept: {
-                type: 'float'
-            },
-            startTime: {
-
-            },
-            endTime: {
-
-            },
-            note: {
-                oneOf: [
-                    {type: 'string'},
-                    {type: 'null'}
-                ]
-            }
-        }
-    };
-
     const validatorResult = validate(req.body, validConversionSegment);
     if (!validatorResult.valid) {
 		log.warn(`Got request to edit conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
@@ -98,44 +107,6 @@ router.post('/edit', async (req, res) => {
  * Route for POST add conversion segment.
  */
 router.post('/addConversionSegment', async (req, res) => {
-    const validConversionSegment = {
-        type: 'object',
-        required: ['sourceId', 'destinationId'],
-        properties: {
-            sourceId: {
-                type: 'number',
-                // Do not allow negatives for now
-                minimum: 0
-            },
-            destinationId: {
-                type: 'number',
-                // Do not allow negatives for now
-                minimum: 0
-            },
-            weekPatternsId: {
-                
-            },
-            slope: {
-                type: 'float'
-            },
-            intercept: {
-                type: 'float'
-            },
-            startTime: {
-
-            },
-            endTime: {
-
-            },
-            note: {
-                oneOf: [
-                    {type: 'string'},
-                    {type: 'null'}
-                ]
-            }
-        }
-    };
-
     const validatorResult = validate(req.body, validConversionSegment);
     if (!validatorResult.valid) {
 		log.warn(`Got request to edit conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
@@ -168,44 +139,6 @@ router.post('/addConversionSegment', async (req, res) => {
  * Route for POST, delete conversion segment
  */
 router.post('/delete', async (req, res) => {
-    const validConversionSegment = {
-        type: 'object',
-        required: ['sourceId', 'destinationId'],
-        properties: {
-            sourceId: {
-                type: 'number',
-                // Do not allow negatives for now
-                minimum: 0
-            },
-            destinationId: {
-                type: 'number',
-                // Do not allow negatives for now
-                minimum: 0
-            },
-            weekPatternsId: {
-                
-            },
-            slope: {
-                type: 'float'
-            },
-            intercept: {
-                type: 'float'
-            },
-            startTime: {
-
-            },
-            endTime: {
-
-            },
-            note: {
-                oneOf: [
-                    {type: 'string'},
-                    {type: 'null'}
-                ]
-            }
-        }
-    };
-
     // Ensure conversion segment object is valid
 	const validatorResult = validate(req.body, validConversionSegment);
 	if (!validatorResult.valid) {
