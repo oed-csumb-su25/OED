@@ -8,6 +8,6 @@ CREATE TABLE IF NOT EXISTS conversion_segments (
     start_time TIMESTAMP DEFAULT '-infinity',
     end_time TIMESTAMP DEFAULT 'infinity',
     note TEXT,
-    FOREIGN KEY (source_id, destination_id) REFERENCES conversions(source_id, destination_id)
+    FOREIGN KEY (source_id, destination_id) REFERENCES conversions(source_id, destination_id),
     PRIMARY KEY (source_id, destination_id, start_time)
 );

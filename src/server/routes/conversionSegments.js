@@ -49,8 +49,8 @@ const validConversionSegment = {
 
 function formatConversionSegmentForResponse(item) {
 	return {
-		sourceId: item.sourceId, 
-        destinationId: item.destinationId, 
+		sourceId: item.source_id, 
+        destinationId: item.destination_id, 
         weekPatternsId: item.week_patterns_id, 
         slope: item.slope, 
         intercept: item.intercept, 
@@ -161,3 +161,6 @@ router.post('/delete', async (req, res) => {
 		success(res, 'Successfully deleted conversion segment');
 	}
 });
+
+
+module.exports = router;

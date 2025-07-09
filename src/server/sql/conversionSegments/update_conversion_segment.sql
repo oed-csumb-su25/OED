@@ -5,10 +5,10 @@ UPDATE conversion_segments
         week_patterns_id = ${week_patterns_id},
         slope = ${slope},
         intercept = ${intercept},
-        start_time = ${new_start_time},
+        start_time = ${start_time},
         end_time = ${end_time},
-        note = ${note},
+        note = ${note}
     WHERE 
         source_id = ${source_id} 
         AND destination_id = ${destination_id} 
-        AND start_time = ${original_start_time};
+        AND start_time = ${start_time};

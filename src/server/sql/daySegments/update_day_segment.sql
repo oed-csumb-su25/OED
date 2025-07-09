@@ -1,7 +1,7 @@
 -- Does not return a value
 
 UPDATE day_segments
-    SET day_pattern_id = ${day_pattern_id},
+    SET day_id = ${day_id},
         start_hour = ${start_hour},
         end_hour = ${end_hour},
         slope = ${slope},
