@@ -350,11 +350,29 @@ meter_hourly_readings_unit
 	FROM hourly_readings_unit hr
 	INNER JOIN meters m ON m.id = hr.meter_id
 	INNER JOIN units u ON m.unit_id = u.id
-	INNER JOIN cik c on c.source_id = m.unit_id
+	INNER JOIN cik c ON c.source_id = m.unit_id
 	GROUP BY m.id, graphic_unit_id, hr.time_interval
 	ORDER BY meter_id;
 
 CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_unit (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/3d functions.
+
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+meter_hourly_readings_unit_time_varying_conversion
+	AS SELECT
+		m.id AS meter_id,
+		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		sum(hr.min_rate * c.slope + c.intercept) AS min_rate,
+		sum(hr.max_rate * c.slope + c.intercept) AS max_rate,
+		hr.time_interval,
+		c.destination_id AS graphic_unit_id
+	
+	FROM hourly_readings_unit hr
+	INNER JOIN meters m ON m.id = hr.meter_id
+	INNER JOIN units u ON m.unit_id = u.id
+	INNER JOIN cik c ON c.source_id = m.unit_id AND tsrange(c.start_time, c.end_time, '()') && hr.time_interval
+	GROUP BY m.id, graphic_unit_id, hr.time_interval
+	ORDER BY meter_id;
 
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS
