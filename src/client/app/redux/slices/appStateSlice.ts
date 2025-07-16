@@ -25,7 +25,7 @@ export interface AppState {
 	selectedLanguage: LanguageTypes;
 	languageManuallySet: boolean;
 	refreshingReadings: boolean;
-}
+};
 
 const defaultState: AppState = {
 	initComplete: false,
@@ -33,7 +33,7 @@ const defaultState: AppState = {
 	selectedLanguage: LanguageTypes.en,
 	chartLinkHideOptions: false,
 	languageManuallySet: false,
-	refreshingReadings: false
+	refreshingReadings: false,
 };
 
 export const appStateSlice = createThunkSlice({
@@ -60,9 +60,10 @@ export const appStateSlice = createThunkSlice({
 			state.chartLinkHideOptions = action.payload;
 
 		}),
-		setRefresingReadings: create.reducer<boolean>((state, action) => {
+		setRefreshingReadings: create.reducer<boolean>((state, action) => {
 			state.refreshingReadings = action.payload;
 		}),
+
 		initApp: create.asyncThunk(
 			// Thunk initiates many data fetching calls on startup before react begins to render
 			async (_: void, { dispatch }) => {
@@ -132,7 +133,7 @@ export const appStateSlice = createThunkSlice({
 		selectOptionsVisibility: state => state.optionsVisibility,
 		selectSelectedLanguage: state => state.selectedLanguage,
 		selectChartLinkHideOptions: state => state.chartLinkHideOptions,
-		selectRefreshingReadings: state => state.refreshingReadings
+		selectRefreshingReadings: state => state.refreshingReadings,
 	}
 });
 
@@ -143,7 +144,7 @@ export const {
 	setOptionsVisibility,
 	updateSelectedLanguage,
 	setChartLinkOptionsVisibility,
-	setRefresingReadings
+	setRefreshingReadings,
 } = appStateSlice.actions;
 
 export const {

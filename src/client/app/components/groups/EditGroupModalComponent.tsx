@@ -343,7 +343,7 @@ export default function EditGroupModalComponent(props: EditGroupModalComponentPr
 
 					// This saves group to the DB and then refreshes the window if the last group being updated and
 					// changes were made to the children. This avoid a reload on name change, etc.
-					submitGroupEdits({editedGroup: submitState, shouldRefreshGroupsDeepMetersView: shouldRefreshGroupsDeepMeters})
+					submitGroupEdits({ editedGroup: submitState, shouldRefreshGroupsDeepMetersView: shouldRefreshGroupsDeepMeters})
 					.unwrap()
 									.then(() => {
 										showSuccessNotification(translate('group.successfully.edited.group'));
