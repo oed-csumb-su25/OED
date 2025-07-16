@@ -1,1 +1,1 @@
-SELECT * FROM day_pattern;
+SELECT * FROM day_patterns;

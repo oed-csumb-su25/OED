@@ -112,16 +112,11 @@ router.post('/edit', async (req, res) => {
 /**
  * Route for POST add week.
  */
-router.post('/addWeek', async (req, res) => {
+router.post('/add', async (req, res) => {
 	const validWeek= {
 		type: 'object',
-		required: ['id', 'weekName', 'sunday','monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+		required: ['weekName', 'sunday','monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
 		properties: {
-			id: {
-				type: 'number',
-				// Do not allow negatives for now
-				minimum: 0
-			},
 			weekName: {
 				type: 'string',
 			},
@@ -164,7 +159,6 @@ router.post('/addWeek', async (req, res) => {
 		try {
 			await conn.tx(async t => {
 				const newWeek = new Week(
-					req.body.id,
 					req.body.weekName,
 					req.body.note,
 					req.body.sunday,

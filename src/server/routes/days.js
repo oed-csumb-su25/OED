@@ -29,6 +29,21 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * Route for getting day by id.
+ */
+router.get('/:id', async (req, res) => {
+	const dayId = parseInt(req.params.id);
+
+	const conn = getConnection();
+	try {
+		const row = await Day.getById(dayId, conn);
+		res.json(formatDayForResponse(row));
+	} catch (err) {
+		log.error(`Error while performing GET day details query: ${err}`);
+	}
+});
+
+/**
  * Route for POST, edit day.
  */
 router.post('/edit', async (req, res) => {
@@ -73,16 +88,12 @@ router.post('/edit', async (req, res) => {
 /**
  * Route for POST add day.
  */
-router.post('/addDay', async (req, res) => {
+router.post('/add', async (req, res) => {
 	const validDay = {
 		type: 'object',
-		required: ['id'],
+		required: ['dayName'],
+		additionalProperties: false,
 		properties: {
-			id: {
-				type: 'number',
-				// Do not allow negatives for now
-				minimum: 0
-			},
 			dayName: {
 				type: 'string',
 			},
@@ -104,7 +115,6 @@ router.post('/addDay', async (req, res) => {
 		try {
 			await conn.tx(async t => {
 				const newDay = new Day(
-					req.body.id,
 					req.body.dayName,
 					req.body.note
 				);
@@ -130,15 +140,6 @@ router.post('/delete', async (req, res) => {
 				type: 'number',
 				// Do not allow negatives for now
 				minimum: 0
-			},
-			dayName: {
-				type: 'string',
-			},
-			note: {
-				oneOf: [
-					{ type: 'string' },
-					{ type: 'null' }
-				]
 			}
 		}
 	};

@@ -74,6 +74,55 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET information for a specific conversion segment by source, destination, and start time
+ * @param {int} source_id
+ * @param {int} destination_id
+ * @param {time} start_time
+ */
+router.get('/:source_id/:destination_id/:start_time', async (req, res) => {
+    const validParams = {
+        type: 'object',
+        required: ['source_id', 'destination_id', 'start_time'],
+        additionalProperties: false,
+        properties: {
+			source_id: { 
+                type: 'string', 
+                pattern: '^\\d+$' 
+            },
+			destination_id: { 
+                type: 'string', 
+                pattern: '^\\d+$' 
+            },
+			start_time: { 
+                type: 'string', 
+                format: 'date-time' 
+            }
+		}
+	};
+
+    const validatorResult = validate(req.params, validParams);
+
+    if (!validatorResult.valid) {
+		log.warn(`Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
+		failure(res, 400, `Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
+	} else {
+		const conn = getConnection();
+		try {
+			const rows = await ConversionSegment.getBySourceDestinationStart(
+                req.params.source_id, 
+                req.params.destination_id, 
+                req.params.start_time, 
+                conn
+            );
+			res.json(rows);
+		} catch (err) {
+			log.error(`Error while preforming GET on conversion segment : ${err}`, err);
+			res.sendStatus(500);
+		}
+	}
+});
+
+/**
  * Route for POST, edit conversion segment.
  */
 router.post('/edit', async (req, res) => {

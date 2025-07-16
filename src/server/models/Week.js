@@ -56,6 +56,17 @@ class Week {
     }
 
     /**
+     * Delete the WeekPattern associated with the id
+     * @param {*} id The week id.
+     * @param {*} conn The connection to use.
+     */
+    static async delete(id, conn) {
+        await conn.none(sqlFile('week/delete_week_pattern.sql'), {
+            id: id
+        });
+    }
+
+    /**
      * Get all Week objects
      * @param {*} conn The database connection to use.
      * @returns all Week objects.
@@ -63,6 +74,19 @@ class Week {
     static async getAll(conn) {
         const rows = await conn.any(sqlFile('week/get_all.sql'));
         return rows.map(Week.mapRow);
+    }
+
+    /** 
+     * Returns the week associated the the id. If the week doesn't exist then return null.
+     * @param {*} id The week id.
+     * @param {*} conn The connection to use.
+     * @returns {Promise.<Week>}
+     */
+    static async getById(id, conn) {
+        const row = await conn.oneOrNone(sqlFile('week/get_by_id.sql'), {
+            id: id
+        });
+        return row === null ? null : Week.mapRow(row);
     }
 
     /**

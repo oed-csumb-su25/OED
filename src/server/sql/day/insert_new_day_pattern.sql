@@ -1,2 +1,3 @@
-INSERT INTO day_pattern(id, day_name, note)
-VALUES (${id}, ${day_name}, ${note});
+INSERT INTO day_pattern(day_name, note)
+VALUES (${day_name}, ${note})
+RETURNING id;

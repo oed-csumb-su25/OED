@@ -29,7 +29,7 @@ class ConversionSegment {
 	 * @returns {Promise.<>}
 	 */
 	static createTable(conn) {
-		return conn.none(sqlFile('conversionSegments/create_conversion_segments_table.sql'));
+		return conn.none(sqlFile('conversionSegment/create_conversion_segments_table.sql'));
 	}
 
 	/**
@@ -47,8 +47,25 @@ class ConversionSegment {
 	 * @returns {Promise.<Array.<ConversionSegment>>}
 	 */
 	static async getAll(conn) {
-		const rows = await conn.any(sqlFile('conversionSegments/get_all.sql'));
+		const rows = await conn.any(sqlFile('conversionSegment/get_all.sql'));
 		return rows.map(ConversionSegment.mapRow);
+	}
+
+	/**
+	 * Returns the conversion segment associated with source, destination, and start_time. If the conversion segment doesn't exist then return null.
+	 * @param {*} source The source unit id.
+	 * @param {*} destination The destination unit id.
+	 * @param {*} start_time The conversion segment start time
+	 * @param {*} conn The connection to use.
+	 * @returns {Promise.<ConversionSegment>}
+	 */
+	static async getBySourceDestinationStart(source, destination, start, conn) {
+		const row = await conn.oneOrNone(sqlFile('conversionSegment/get_by_source_destination_start.sql'), {
+			source: source,
+			destination: destination,
+			start_time: start
+		});
+		return row === null ? null : ConversionSegment.mapRow(row);
 	}
 
 	/**
@@ -57,7 +74,7 @@ class ConversionSegment {
 	 */
 	async insert(conn) {
 		const conversionSegment = this;
-		await conn.none(sqlFile('conversionSegments/insert_new_conversion_segment.sql'), conversionSegment);
+		await conn.none(sqlFile('conversionSegment/insert_new_conversion_segment.sql'), conversionSegment);
 	}
 
 	/**
@@ -66,7 +83,7 @@ class ConversionSegment {
 	 */
 	async update(conn) {
 		const conversionSegment = this;
-		await conn.none(sqlFile('conversionSegments/update_conversion_segment.sql'), conversionSegment);
+		await conn.none(sqlFile('conversionSegment/update_conversion_segment.sql'), conversionSegment);
 	}
 
 	/**
@@ -77,7 +94,7 @@ class ConversionSegment {
 	 * @param {*} conn The connection to use.
 	 */
 	static async delete(source, destination, start_time, conn) {
-		await conn.none(sqlFile('conversionSegments/delete_conversion_segment.sql'), {
+		await conn.none(sqlFile('conversionSegment/delete_conversion_segment.sql'), {
 			source: source,
 			destination: destination,
             start_time: start_time
