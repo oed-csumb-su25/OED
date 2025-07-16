@@ -358,25 +358,63 @@ CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_un
 
 
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-meter_daily_readings_unit
+	CREATE MATERIALIZED VIEW IF NOT EXISTS 
+	meter_daily_readings_unit
 	AS SELECT
-		m.id AS meter_id,
-		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
-		sum(dr.min_rate * c.slope + c.intercept) AS min_rate,
-		sum(dr.max_rate * c.slope + c.intercept) AS max_rate,
-		dr.time_interval,
-		c.destination_id AS graphic_unit_id
-	
-	FROM daily_readings_unit dr
-	INNER JOIN meters m ON m.id = dr.meter_id
-	INNER JOIN units u ON m.unit_id = u.id
-	INNER JOIN cik c on c.source_id = m.unit_id
-	GROUP BY m.id, graphic_unit_id, dr.time_interval
-	ORDER BY m.id, graphic_unit_id, dr.time_interval;
+    h.meter_id AS meter_id,
+    avg(h.reading_rate) AS reading_rate,
+    min(h.min_rate) AS min_rate,
+    max(h.max_rate) AS max_rate,
+    tsrange(gen.interval_start, gen.interval_start + INTERVAL '1 day', '()') AS time_interval,
+    h.graphic_unit_id AS graphic_unit_id
 
-CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/bar/compare functions.
---CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
+	FROM meter_hourly_readings_unit h
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('day', lower(h.time_interval)),
+		date_trunc_up('day', upper(h.time_interval)) - INTERVAL '1 hour',
+		INTERVAL '1 day'
+	) gen(interval_start)
+	WHERE tsrange(gen.interval_start, gen.interval_start + INTERVAL '1 day', '()') @> h.time_interval
+	GROUP BY h.meter_id, h.graphic_unit_id, gen.interval_start
+	ORDER BY h.meter_id, graphic_unit_id, gen.interval_start;
+
+	CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/bar/compare functions.
+	--CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
+
+
+	-- Simpler and faster version of the above view that does not use generate_series.
+	-- Does not support days with not data(zero readings for some days).
+	-- time_interval can not overlap days (23:30 - 00:30).
+	CREATE MATERIALIZED VIEW IF NOT EXISTS meter_daily_readings_unit_v2 
+	AS SELECT
+    h.meter_id,
+    avg(h.reading_rate) AS reading_rate,
+    min(h.min_rate) AS min_rate,
+    max(h.max_rate) AS max_rate,
+    tsrange(date_trunc('day', lower(h.time_interval)), date_trunc('day', lower(h.time_interval)) + INTERVAL '1 day', '()') AS time_interval,
+    h.graphic_unit_id
+
+	FROM meter_hourly_readings_unit h
+	GROUP BY h.meter_id, h.graphic_unit_id, date_trunc('day', lower(h.time_interval))
+	ORDER BY h.meter_id, time_interval;
+
+	-- Deprecated, deletion imminent!
+	CREATE MATERIALIZED VIEW IF NOT EXISTS
+	meter_daily_readings_unit_old
+		AS SELECT
+			m.id AS meter_id,
+			sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+			sum(dr.min_rate * c.slope + c.intercept) AS min_rate,
+			sum(dr.max_rate * c.slope + c.intercept) AS max_rate,
+			dr.time_interval,
+			c.destination_id AS graphic_unit_id
+		
+		FROM daily_readings_unit dr
+		INNER JOIN meters m ON m.id = dr.meter_id
+		INNER JOIN units u ON m.unit_id = u.id
+		INNER JOIN cik c on c.source_id = m.unit_id
+		GROUP BY m.id, graphic_unit_id, dr.time_interval
+		ORDER BY m.id, graphic_unit_id, dr.time_interval;
 
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
