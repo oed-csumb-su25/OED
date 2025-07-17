@@ -1,1 +1,1 @@
-SELECT * FROM week_pattern;
+SELECT * FROM week_patterns;

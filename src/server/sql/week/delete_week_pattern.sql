@@ -1,2 +1,2 @@
-DELETE FROM week_pattern 
+DELETE FROM week_patterns
 WHERE id = ${id};

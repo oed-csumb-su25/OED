@@ -5,16 +5,16 @@ const sqlFile = database.sqlFile;
 class DaySegment {
     /**
      * @param {*} id This day_segments' id.
-     * @param {*} day_pattern_id The foreign key to the day_patterns table represents the day the segment belongs to.
+     * @param {*} day_id The foreign key to the day_patterns table represents the day the segment belongs to.
      * @param {*} start_hour The hour the segment starts at.
      * @param {*} end_hour The hour the segment ends at.
      * @param {*} slope The slope of the conversion.
      * @param {*} intercept The intercept of the conversion.
      * @param {*} note Comments by the admin.
      */
-    constructor(id, day_pattern_id, start_hour, end_hour, slope, intercept, note) {
+    constructor(id, day_id, start_hour, end_hour, slope, intercept, note) {
         this.id = id;
-        this.day_pattern_id = day_pattern_id;
+        this.day_id = day_id;
         this.start_hour = start_hour; 
         this.end_hour = end_hour;
         this.slope = slope;
@@ -38,7 +38,7 @@ class DaySegment {
      static mapRow(row) {
         return new DaySegment(
             row.id,
-            row.day_pattern_id,
+            row.day_id,
             row.start_hour,
             row.end_hour,
             row.slope,
@@ -53,7 +53,7 @@ class DaySegment {
      * @param {*} conn The connection to use.
      */
     static async delete(id, conn) {
-        await conn.none(sqlFile('day/delete_day_segment.sql'), {
+        await conn.none(sqlFile('daySegment/delete_day_segment.sql'), {
             id: id
         });
     }
@@ -68,19 +68,19 @@ class DaySegment {
         return rows.map(DaySegment.mapRow);
     }
 
-    /**
-     * Get day segments by day name
-     * @param {*} day_name The day name.
-     * @param {*} conn The database connection to use.
-     * @returns all DaySegment objects.
-     */
-    static async getByDayName(day_name, conn) {
-        const rows = await conn.any(sqlFile('daySegment/get_by_day_name.sql'), {
-            day_name: day_name
-        });
-        
-        return rows.map(DaySegment.mapRow);
-    }
+    // /**
+    //  * Get day segments by day name
+    //  * @param {*} day_name The day name.
+    //  * @param {*} conn The database connection to use.
+    //  * @returns all DaySegment objects.
+    //  */
+    // static async getByDayName(day_name, conn) {
+    //     const rows = await conn.any(sqlFile('daySegment/get_by_day_name.sql'), {
+    //         day_name: day_name
+    //     });
+
+    //     return rows.map(DaySegment.mapRow);
+    // }
 
     /** 
      * Returns the day segment associated the id. If the day segment doesn't exist then return null.
@@ -96,7 +96,7 @@ class DaySegment {
     }
 
     /** 
-     * Returns the day segments associated the day id. If the day id doesn't exist then return null.
+     * Returns the day segments associated with the day id.
      * @param {*} dayId The day pattern id.
      * @param {*} conn The connection to use.
      * @returns {Promise.<DaySegment>}
@@ -108,70 +108,85 @@ class DaySegment {
         return rows.map(DaySegment.mapRow)
     }
 
-     /**
-     * Inserts a new day segment. Rebuilds surrounding segments to ensure full 00:00 - 24:00 coverage.
+    /**
+     * Returns a promise to insert the day segment.
      * 
-     * @param {*} day_pattern_id The day pattern id the segment belongs to.
-     * @param {*} start_hour The start hour of the segment (inclusive).
-     * @param {*} end_hour The end hour of the segment (exclusive).
-     * @param {*} slope The conversion slope.
-     * @param {*} intercept The conversion intercept.
-     * @param {*} note Optional admin note.
-     * @param conn The database connection to use.
+     * @param {*} conn The connection to be used
+     * @returns {Promise.<void>}
      */
-     static async insert(day_pattern_id, start_hour, end_hour, slope, intercept, note, conn) {
-        const getOverlapping = sqlFile('daySegment/get_overlapping_segments.sql');
-        const deleteOverlapping = sqlFile('daySegment/delete_overlapping_segments.sql');
-        const insertSegment = sqlFile('daySegment/insert_new_day_segment.sql');
-
-        // Fetch overlapping segments
-        const overlapping = await conn.any(getOverlapping, {
-            day_id: day_pattern_id,
-            start_hour: start_hour,
-            end_hour: end_hour
-        });
-
-        // Delete overlapping segments
-        await conn.none(deleteOverlapping, {
-            day_id: day_pattern_id,
-            start_hour: start_hour,
-            end_hour: end_hour
-        });
-
-        // Reinsert trimmed segments
-        for (const seg of overlapping) {
-            if (seg.start_hour < start_hour) {
-                await conn.none(insertSegment, {
-                    day_pattern_id: day_pattern_id,
-                    start_hour: seg.start_hour,
-                    end_hour: start_hour,
-                    slope: seg.slope,
-                    intercept: seg.intercept,
-                    note: seg.note
-                });
-            }
-            if (seg.end_hour > end_hour) {
-                await conn.none(insertSegment, {
-                    day_pattern_id: day_pattern_id,
-                    start_hour: end_hour,
-                    end_hour: seg.end_hour,
-                    slope: seg.slope,
-                    intercept: seg.intercept,
-                    note: seg.note
-                });
-            }
+    async insert(conn) {
+        const daySegment = this;
+        if (daySegment.id !== undefined) {
+            throw new Error('Attempted to insert a day segment that already has an ID');
         }
 
-        // insert the new segment
-        await conn.none(insertSegment, {
-            day_pattern_id: day_pattern_id,
-            start_hour: start_hour,
-            end_hour: end_hour,
-            slope: slope,
-            intercept: intercept,
-            note: note
-        });
+        const resp =  await conn.none(sqlFile('daySegment/insert_new_day_segment.sql'), daySegment);
     }
+
+    //  /**
+    //  * Inserts a new day segment. Rebuilds surrounding segments to ensure full 00:00 - 24:00 coverage.
+    //  * 
+    //  * @param {*} day_pattern_id The day pattern id the segment belongs to.
+    //  * @param {*} start_hour The start hour of the segment (inclusive).
+    //  * @param {*} end_hour The end hour of the segment (exclusive).
+    //  * @param {*} slope The conversion slope.
+    //  * @param {*} intercept The conversion intercept.
+    //  * @param {*} note Optional admin note.
+    //  * @param conn The database connection to use.
+    //  */
+    //  static async insert(day_pattern_id, start_hour, end_hour, slope, intercept, note, conn) {
+    //     const getOverlapping = sqlFile('daySegment/get_overlapping_segments.sql');
+    //     const deleteOverlapping = sqlFile('daySegment/delete_overlapping_segments.sql');
+    //     const insertSegment = sqlFile('daySegment/insert_new_day_segment.sql');
+
+    //     // Fetch overlapping segments
+    //     const overlapping = await conn.any(getOverlapping, {
+    //         day_id: day_pattern_id,
+    //         start_hour: start_hour,
+    //         end_hour: end_hour
+    //     });
+
+    //     // Delete overlapping segments
+    //     await conn.none(deleteOverlapping, {
+    //         day_id: day_pattern_id,
+    //         start_hour: start_hour,
+    //         end_hour: end_hour
+    //     });
+
+    //     // Reinsert trimmed segments
+    //     for (const seg of overlapping) {
+    //         if (seg.start_hour < start_hour) {
+    //             await conn.none(insertSegment, {
+    //                 day_pattern_id: day_pattern_id,
+    //                 start_hour: seg.start_hour,
+    //                 end_hour: start_hour,
+    //                 slope: seg.slope,
+    //                 intercept: seg.intercept,
+    //                 note: seg.note
+    //             });
+    //         }
+    //         if (seg.end_hour > end_hour) {
+    //             await conn.none(insertSegment, {
+    //                 day_pattern_id: day_pattern_id,
+    //                 start_hour: end_hour,
+    //                 end_hour: seg.end_hour,
+    //                 slope: seg.slope,
+    //                 intercept: seg.intercept,
+    //                 note: seg.note
+    //             });
+    //         }
+    //     }
+
+    //     // insert the new segment
+    //     await conn.none(insertSegment, {
+    //         day_pattern_id: day_pattern_id,
+    //         start_hour: start_hour,
+    //         end_hour: end_hour,
+    //         slope: slope,
+    //         intercept: intercept,
+    //         note: note
+    //     });
+    // }
     
     /**
      * Returns a promise to update an existing daySegment in the database.

@@ -159,6 +159,7 @@ router.post('/add', async (req, res) => {
 		try {
 			await conn.tx(async t => {
 				const newWeek = new Week(
+					undefined,
 					req.body.weekName,
 					req.body.note,
 					req.body.sunday,
@@ -191,37 +192,7 @@ router.post('/delete', async (req, res) => {
 				type: 'number',
 				// Do not allow negatives for now
 				minimum: 0
-			},
-			weekName: {
-				type: 'string',
-			},
-			note: {
-				oneOf: [
-					{ type: 'string' },
-					{ type: 'null' }
-				]
-			},
-            sunday: {
-                type: 'number'
-            },
-            monday: {
-                type: 'number'
-            },
-            tuesday: {
-                type: 'number'
-            },
-            wednesday: {
-                type: 'number'
-            },
-            thursday: {
-                type: 'number'
-            },
-            friday: {
-                type: 'number'
-            },
-            saturday: {
-                type: 'number'
-            }
+			}
 		}
 	};
 
@@ -237,15 +208,7 @@ router.post('/delete', async (req, res) => {
 			// Just try to delete it to save the extra database call, since the database will return an error anyway if the row does not exist
 			await Week.delete(
                 req.body.id, 
-                req.body.weekName,
-			    req.body.note,
-                req.body.sunday,
-                req.body.monday,
-                req.body.tuesday,
-                req.body.wednesday,
-                req.body.thursday,
-                req.body.friday,
-                req.body.saturday
+				conn
             );
 		} catch (err) {
 			log.error(`Error while deleting week with error(s): ${err}`);

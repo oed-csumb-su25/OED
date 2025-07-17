@@ -42,7 +42,8 @@ class Week {
      * @returns the created Week object.
      */
     static mapRow(row) {
-        return new Week(row.id, 
+        return new Week(
+            row.id, 
             row.week_name, 
             row.note, 
             row.sunday, 
@@ -89,15 +90,6 @@ class Week {
         return row === null ? null : Week.mapRow(row);
     }
 
-    /**
-     * Delete a week by ID.
-     * @param {*} conn The connection to be used.
-     * @param {*} id The id of the week to be deleted.
-     * @returns {Promise.<void>}
-     */
-    static async delete(conn, id) {
-        return conn.none(sqlFile('week/delete_week_pattern.sql'), {id});
-    }
     /**
      * Returns a promise to insert this week into the database
      * @param conn The database connection to use.

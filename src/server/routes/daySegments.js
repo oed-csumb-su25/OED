@@ -10,7 +10,7 @@ const router = express.Router();
 function formatDaySegmentForResponse(item) {
 	return {
 		id: item.id, 
-        dayId: item.day_pattern_id,
+        dayId: item.day_id,
         startHour: item.start_hour,
         endHour: item.end_hour,
         slope: item.slope,
@@ -33,16 +33,52 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * Route for getting a day segment by id
+ */
+router.get('/:id', async(req, res) => {
+	const validParams = {
+		type: 'object',
+		required: ['id'],
+		properties: {
+			id: {
+				type: 'string',
+				pattern: '^\\d+$'
+			}
+		}
+	};
+	if (!validate(req.params, validParams).valid) {
+		return res.status(400).json({error: 'Invalid id'});
+	} else {
+		const conn = getConnection();
+		try {
+			const rows = await DaySegment.getById(req.params.id, conn);
+			res.json(rows);
+		} catch (err) {
+			log.error(`Error while performing GET day segment by id: ${err}`);
+		}
+	}
+});
+
+/**
  * Route for getting all day segments with the same day id
  */
-router.get('/:dayId', async( req, res) => {
-	const dayId = parseInt(req.params.dayId);
-	if (isNaN(dayId) || dayId < 0) {
+router.get('/dayId/:dayId', async(req, res) => {
+	const validParams = {
+		type: 'object',
+		required: ['dayId'],
+		properties: {
+			dayId: {
+				type: 'string',
+				pattern: '^\\d+$'
+			}
+		}
+	};
+	if (!validate(req.params, validParams).valid) {
 		return res.status(400).json({error: 'Invalid day_id'});
 	} else {
 		const conn = getConnection();
 		try {
-			const rows = await DaySegment.getByDayId(dayId, conn);
+			const rows = await DaySegment.getByDayId(req.params.dayId, conn);
 			res.json(rows.map(formatDaySegmentForResponse));
 		} catch (err) {
 			log.error(`Error while performing GET day segments by day_id: ${err}`);
@@ -161,13 +197,22 @@ router.post('/add', async (req, res) => {
 		failure(res, 400, `Got request to insert day segment with invalid day segment data. Error(s): ${validatorResult.errors}`);
 	} else {
 
-		if (startHour >= endHour) {
+		if (req.body.startHour >= req.body.endHour) {
 			return failure(res, 400, `start hour must be less than end hour`);
 		} else {
 			const conn = getConnection();
 			try {
 				await conn.tx(async t => {
-					await newDaySegment.insert(dayId, startHour, endHour, slope, intercept, note, t);
+					const newDaySegment = new DaySegment(
+						undefined,
+						req.body.dayId,
+						req.body.startHour,
+						req.body.endHour,
+						req.body.slope,
+						req.body.intercept,
+						req.body.note
+					);
+					await newDaySegment.insert(t);
 				});
 				res.sendStatus(200);
 			} catch (err) {

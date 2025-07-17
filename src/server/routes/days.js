@@ -87,15 +87,21 @@ router.post('/edit', async (req, res) => {
 
 /**
  * Route for POST add day.
+ * The slope and intercept are included to create a new day segment spanning from 0 to 24.
  */
 router.post('/add', async (req, res) => {
 	const validDay = {
 		type: 'object',
-		required: ['dayName'],
-		additionalProperties: false,
+		required: ['dayName', 'slope', 'intercept'],
 		properties: {
 			dayName: {
-				type: 'string',
+				type: 'string'
+			},
+			slope: {
+				type: 'number'
+			},
+			intercept: {
+				type: 'number'
 			},
 			note: {
 				oneOf: [
@@ -115,10 +121,11 @@ router.post('/add', async (req, res) => {
 		try {
 			await conn.tx(async t => {
 				const newDay = new Day(
+					undefined,
 					req.body.dayName,
 					req.body.note
 				);
-				await newDay.insert(t);
+				await newDay.insert(req.body.slope, req.body.intercept, t);
 			});
 			res.sendStatus(200);
 		} catch (err) {

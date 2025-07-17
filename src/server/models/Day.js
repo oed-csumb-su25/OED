@@ -71,30 +71,30 @@ class Day {
 
     /**
      * Insert this day into the database along with a default day segment.
-     * The default day segment spans from 00:00 to 24:00 with a slope of 0 and intercept of 0.
+     * The default day segment spans from 00:00 to 24:00.
      * Sets the day segments day_id property to the id of the newly created day.
      * 
      * @param conn The database connection to use.
      * @returns {Promise.<>}
      */
-    async insert(conn) {
+    async insert(slope, intercept, conn) {
         const day = this;
         if (day.id !== undefined) {
-            throw new Error('Attempted to insert a day that already has an ID');
+            throw new Error(`Attempted to insert a day that already has an ID ${day.id}`);
         }
         
         // insert new day
         const resp = await conn.one(sqlFile('day/insert_new_day_pattern.sql'), day);
         this.id = resp.id;
 
-        // insert default day segment
+        // insert default day segment, including the new day id
         const defaultSegment = {
             day_id: this.id,
             start_hour: 0,
             end_hour: 24,
-            slope: 0,
-            intercept: 0,
-            note: null
+            slope: slope,
+            intercept: intercept,
+            note: this.note
         };
 
         await conn.none(sqlFile('daySegment/insert_new_day_segment.sql'), defaultSegment);

@@ -1,6 +1,6 @@
 -- Does not return a value
 
-UPDATE week_pattern
+UPDATE week_patterns
     SET week_name = ${week_name},
         note = ${note},
         sunday = ${sunday},

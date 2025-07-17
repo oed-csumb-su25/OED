@@ -155,7 +155,7 @@ router.post('/edit', async (req, res) => {
 /**
  * Route for POST add conversion segment.
  */
-router.post('/addConversionSegment', async (req, res) => {
+router.post('/add', async (req, res) => {
     const validatorResult = validate(req.body, validConversionSegment);
     if (!validatorResult.valid) {
 		log.warn(`Got request to edit conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);

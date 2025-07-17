@@ -1,5 +1,5 @@
 -- Insert a new week pattern into the week table
-INSERT INTO week_pattern (
+INSERT INTO week_patterns (
     week_name, 
     note, 
     sunday, 
@@ -19,4 +19,5 @@ INSERT INTO week_pattern (
     ${thursday}, 
     ${friday}, 
     ${saturday}
-);
+)
+RETURNING id;
