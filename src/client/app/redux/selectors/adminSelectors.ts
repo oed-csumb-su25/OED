@@ -343,16 +343,16 @@ export const selectDefaultCreateConversionValues = createAppSelector(
 export const selectDefaultCreateWeekValues = createAppSelector(
 	[],
 	() => ({
-		id: -1,
+		id: -99,
 		name: '',
 		note: '',
-		sunday: '-1',
-		monday: '-1',
-		tuesday: '-1',
-		wednesday: '-1',
-		thursday: '-1',
-		friday: '-1',
-		saturday: '-1'
+		sunday: '-999',
+		monday: '-999',
+		tuesday: '-999',
+		wednesday: '-999',
+		thursday: '-999',
+		friday: '-999',
+		saturday: '-999'
 	})
 );
 

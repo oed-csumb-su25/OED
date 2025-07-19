@@ -5,8 +5,11 @@
 import * as React from 'react';
 import { FormattedMessage } from 'react-intl';
 import { Button, Col, Container, FormFeedback, FormGroup, Input, Label, Modal, ModalBody, ModalFooter, ModalHeader, Row, Table } from 'reactstrap';
+import { tooltipBaseStyle } from '../../styles/modalStyle';
 import { Week } from '../../types/redux/weeks';
 import translate from '../../utils/translate';
+import TooltipHelpComponent from '../TooltipHelpComponent';
+import TooltipMarkerComponent from '../TooltipMarkerComponent';
 import { fakeDaysData } from './fake-week-data';
 
 interface EditWeekModalComponentProps {
@@ -69,6 +72,10 @@ export default function EditWeekModalComponent(props: EditWeekModalComponentProp
 			<Modal isOpen={props.show} toggle={props.handleClose} backdrop="static">
 				<ModalHeader toggle={props.handleClose}>
 					<FormattedMessage id="week.edit" />
+					<TooltipHelpComponent page="week-edit" />
+					<div style={tooltipBaseStyle}>
+						<TooltipMarkerComponent page="week-edit" helpTextId="help.admin.weekedit" />
+					</div>
 				</ModalHeader>
 				<ModalBody>
 					<Container>

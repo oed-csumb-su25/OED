@@ -4,8 +4,9 @@
 
 import * as React from 'react';
 import { FormattedMessage } from 'react-intl';
-import { titleStyle } from '../../styles/modalStyle';
+import { titleStyle, tooltipBaseStyle } from '../../styles/modalStyle';
 import TooltipHelpComponent from '../TooltipHelpComponent';
+import TooltipMarkerComponent from '../TooltipMarkerComponent';
 import CreateWeekModalComponent from './CreateWeekModalComponent';
 import { fakeWeeksData } from './fake-week-data';
 import WeekViewComponent from './WeekViewComponent';
@@ -23,11 +24,14 @@ export default function WeeksDetailComponent() {
 	return (
 		<div className="flexGrowOne">
 			<div>
-				<TooltipHelpComponent page='weeks' />
+				<TooltipHelpComponent page="weeks" />
 
 				<div className="container-fluid">
 					<h2 style={titleStyle}>
-						<FormattedMessage id='weeks' />
+						<FormattedMessage id="weeks" />
+						<div style={tooltipBaseStyle}>
+							<TooltipMarkerComponent page="weeks" helpTextId="help.admin.weekview" />
+						</div>
 					</h2>
 					<div className="edit-btn">
 						<CreateWeekModalComponent />

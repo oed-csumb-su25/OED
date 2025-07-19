@@ -7,7 +7,10 @@ import { FormattedMessage } from 'react-intl';
 import { Button, Col, Container, FormFeedback, FormGroup, Input, Label, Modal, ModalBody, ModalFooter, ModalHeader, Row, Table } from 'reactstrap';
 import { useAppSelector } from '../../redux/reduxHooks';
 import { selectDefaultCreateWeekValues } from '../../redux/selectors/adminSelectors';
+import { tooltipBaseStyle } from '../../styles/modalStyle';
 import translate from '../../utils/translate';
+import TooltipHelpComponent from '../TooltipHelpComponent';
+import TooltipMarkerComponent from '../TooltipMarkerComponent';
 import { fakeDaysData } from './fake-week-data';
 
 /**
@@ -58,6 +61,10 @@ export default function CreateWeekModalComponent(): React.ReactElement {
 			<Modal isOpen={showModal} toggle={onToggleModal} backdrop="static">
 				<ModalHeader toggle={onToggleModal}>
 					<FormattedMessage id="week.create" />
+					<TooltipHelpComponent page="week-create" />
+					<div style={tooltipBaseStyle}>
+						<TooltipMarkerComponent page="week-create" helpTextId="help.admin.weekcreate" />
+					</div>
 				</ModalHeader>
 				<ModalBody>
 					<Container>
@@ -114,10 +121,10 @@ export default function CreateWeekModalComponent(): React.ReactElement {
 														name={day}
 														value={weekDetails[day]}
 														// TODO (evan-carey): change if the day ID is a number instead of a string
-														invalid={weekDetails[day] === '-1'}
+														invalid={weekDetails[day] === '-999'}
 														onChange={event => setWeekDetails({ ...weekDetails, [day]: event.target.value })}
 													>
-														<option value="-1" key="" hidden={weekDetails[day] !== '-1'} disabled>
+														<option value="-999" key="" hidden={weekDetails[day] !== '-1'} disabled>
 															{translate('select.day')}
 														</option>
 														{/* TODO (evan-carey): populate with real days data */}
