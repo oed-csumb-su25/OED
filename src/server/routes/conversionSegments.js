@@ -164,8 +164,8 @@ router.post('/edit', async (req, res) => {
 router.post('/add', async (req, res) => {
     const validatorResult = validate(req.body, validConversionSegment);
     if (!validatorResult.valid) {
-		log.warn(`Got request to edit conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
-		failure(res, 400, `Got request to edit conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
+		log.warn(`Got request to add conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
+		failure(res, 400, `Got request to add conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
 	} else {
         const conn = getConnection();
         try {
