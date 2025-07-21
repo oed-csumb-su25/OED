@@ -57,9 +57,7 @@ router.post('/edit', async (req, res) => {
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'number',
-				// Do not allow negatives for now
-				minimum: 0
+				type: 'number'
 			},
 			dayName: {
 				type: 'string',
@@ -151,9 +149,7 @@ router.post('/delete', async (req, res) => {
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'number',
-				// Do not allow negatives for now
-				minimum: 0
+				type: 'number'
 			}
 		}
 	};
