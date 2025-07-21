@@ -53,6 +53,7 @@ router.get('/:id', async (req, res) => {
 router.post('/edit', async (req, res) => {
 	const validDay = {
 		type: 'object',
+		maxProperties: 3,
 		required: ['id'],
 		properties: {
 			id: {
@@ -96,6 +97,7 @@ router.post('/edit', async (req, res) => {
 router.post('/add', async (req, res) => {
 	const validDay = {
 		type: 'object',
+		maxProperties: 4,
 		required: ['dayName', 'slope', 'intercept'],
 		properties: {
 			dayName: {
@@ -145,6 +147,7 @@ router.post('/add', async (req, res) => {
 router.post('/delete', async (req, res) => {
 	const validDay = {
 		type: 'object',
+		maxProperties: 1,
 		required: ['id'],
 		properties: {
 			id: {

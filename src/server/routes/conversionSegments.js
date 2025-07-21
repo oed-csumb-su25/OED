@@ -12,6 +12,7 @@ const validate = require('jsonschema').validate;
 const router = express.Router();
 const validConversionSegment = {
     type: 'object',
+    maxProperties: 8,
     required: ['sourceId', 'destinationId'],
     properties: {
         sourceId: {
@@ -86,6 +87,7 @@ router.get('/', async (req, res) => {
 router.get('/:sourceId/:destinationId/:startTime', async (req, res) => {
     const validParams = {
         type: 'object',
+        maxProperties: 8,
         required: ['sourceId', 'destinationId', 'startTime'],
         additionalProperties: false,
         properties: {

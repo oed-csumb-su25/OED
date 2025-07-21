@@ -42,6 +42,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async(req, res) => {
 	const validParams = {
 		type: 'object',
+		maxProperties: 1,
 		required: ['id'],
 		properties: {
 			id: {
@@ -69,6 +70,7 @@ router.get('/:id', async(req, res) => {
 router.get('/dayId/:dayId', async(req, res) => {
 	const validParams = {
 		type: 'object',
+		maxProperties: 1,
 		required: ['dayId'],
 		properties: {
 			dayId: {
@@ -96,6 +98,7 @@ router.get('/dayId/:dayId', async(req, res) => {
 router.post('/edit', async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
+		maxProperties: 7,
 		required: ['id'],
 		properties: {
 			id: {
@@ -163,6 +166,7 @@ router.post('/edit', async (req, res) => {
 router.post('/add', async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
+		maxProperties: 6,
 		required: ['dayId', 'startHour', 'endHour', 'slope', 'intercept'],
 		additionalProperties: false,
 		properties: {
@@ -233,6 +237,7 @@ router.post('/add', async (req, res) => {
 router.post('/delete', async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
+		maxProperties: 7,
 		required: ['id'],
 		properties: {
 			id: {

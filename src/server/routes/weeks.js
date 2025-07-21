@@ -45,6 +45,7 @@ router.get('/', async (req, res) => {
 router.post('/edit', async (req, res) => {
 	const validWeek = {
 		type: 'object',
+		maxProperties: 10,
 		required: ['id'],
 		properties: {
 			id: {
@@ -119,6 +120,7 @@ router.post('/edit', async (req, res) => {
 router.post('/add', async (req, res) => {
 	const validWeek= {
 		type: 'object',
+		maxProperties: 9,
 		required: ['weekName', 'sunday','monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
 		properties: {
 			weekName: {
@@ -190,6 +192,7 @@ router.post('/add', async (req, res) => {
 router.post('/delete', async (req, res) => {
 	const validWeek = {
 		type: 'object',
+		maxProperties: 1,
 		required: ['id'],
 		properties: {
 			id: {
