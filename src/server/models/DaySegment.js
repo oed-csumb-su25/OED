@@ -93,7 +93,7 @@ class DaySegment {
      * @returns {Promise.<DaySegment>}
      */
     static async getById(id, conn) {
-        const row = await conn.oneOrNone(sqlFile('daySegment/get_by_id.sql'), {
+        const row = await conn.one(sqlFile('daySegment/get_by_id.sql'), {
             id: id
         });
         return row === null ? null : DaySegment.mapRow(row);
