@@ -101,17 +101,17 @@ router.post('/add', async (req, res) => {
 			dayName: {
 				type: 'string'
 			},
-			slope: {
-				type: 'number'
-			},
-			intercept: {
-				type: 'number'
-			},
 			note: {
 				oneOf: [
 					{ type: 'string' },
 					{ type: 'null' }
 				]
+			},
+			slope: {
+				type: 'number'
+			},
+			intercept: {
+				type: 'number'
 			},
 			segmentNote: {
 				oneOf: [
