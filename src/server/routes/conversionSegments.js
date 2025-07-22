@@ -79,6 +79,49 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET information for a specific conversion segment by source and destination
+ * @param {int} sourceId
+ * @param {int} destinationId
+ */
+router.get('/:sourceId/:destinationId', async (req, res) => {
+    const validParams = {
+        type: 'object',
+        maxProperties: 2,
+        required: ['sourceId', 'destinationId'],
+        properties: {
+			sourceId: { 
+                type: 'string', 
+                pattern: '^\\d+$' 
+            },
+			destinationId: { 
+                type: 'string', 
+                pattern: '^\\d+$' 
+            }
+		}
+	};
+
+    const validatorResult = validate(req.params, validParams);
+
+    if (!validatorResult.valid) {
+		log.warn(`Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
+		failure(res, 400, `Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
+	} else {
+		const conn = getConnection();
+		try {
+			const rows = await ConversionSegment.getBySourceDestination(
+                req.params.sourceId, 
+                req.params.destinationId, 
+                conn
+            );
+			res.json(rows);
+		} catch (err) {
+			log.error(`Error while preforming GET on conversion segment : ${err}`, err);
+			res.sendStatus(500);
+		}
+	}
+});
+
+/**
  * GET information for a specific conversion segment by source, destination, and start time
  * @param {int} sourceId
  * @param {int} destinationId
@@ -87,9 +130,8 @@ router.get('/', async (req, res) => {
 router.get('/:sourceId/:destinationId/:startTime', async (req, res) => {
     const validParams = {
         type: 'object',
-        maxProperties: 8,
+        maxProperties: 3,
         required: ['sourceId', 'destinationId', 'startTime'],
-        additionalProperties: false,
         properties: {
 			sourceId: { 
                 type: 'string', 

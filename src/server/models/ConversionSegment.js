@@ -56,17 +56,32 @@ class ConversionSegment {
 	}
 
 	/**
+	 * Returns the conversion segment associated with source and destination. If the conversion segment doesn't exist then return null.
+	 * @param {*} sourceId The source unit id.
+	 * @param {*} destinationId The destination unit id.
+	 * @param {*} conn The connection to use.
+	 * @returns {Promise.<ConversionSegment>}
+	 */
+	static async getBySourceDestination(sourceId, destinationId, conn) {
+		const row = await conn.one(sqlFile('conversionSegment/get_by_source_destination.sql'), {
+			sourceId: sourceId,
+			destinationId: destinationId
+		});
+		return row === null ? null : ConversionSegment.mapRow(row);
+	}
+
+	/**
 	 * Returns the conversion segment associated with source, destination, and startTime. If the conversion segment doesn't exist then return null.
-	 * @param {*} source The source unit id.
-	 * @param {*} destination The destination unit id.
+	 * @param {*} sourceId The source unit id.
+	 * @param {*} destinationId The destination unit id.
 	 * @param {*} startTime The conversion segment start time
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<ConversionSegment>}
 	 */
-	static async getBySourceDestinationStart(source, destination, start, conn) {
+	static async getBySourceDestinationStart(sourceId, destinationId, start, conn) {
 		const row = await conn.one(sqlFile('conversionSegment/get_by_source_destination_start.sql'), {
-			source: source,
-			destination: destination,
+			sourceId: sourceId,
+			destinationId: destinationId,
 			startTime: start
 		});
 		return row === null ? null : ConversionSegment.mapRow(row);
@@ -97,10 +112,10 @@ class ConversionSegment {
      * @param {*} startTime The time the segment starts.
 	 * @param {*} conn The connection to use.
 	 */
-	static async delete(source, destination, startTime, conn) {
+	static async delete(sourceId, destinationId, startTime, conn) {
 		await conn.none(sqlFile('conversionSegment/delete_conversion_segment.sql'), {
-			source: source,
-			destination: destination,
+			sourceId: sourceId,
+			destinationId: destinationId,
             startTime: startTime
 		});
 	}

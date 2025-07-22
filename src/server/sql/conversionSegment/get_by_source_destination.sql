@@ -4,4 +4,4 @@
  
 SELECT *
 FROM conversion_segments
-WHERE source_id = ${sourceId} AND destination_id = ${destinationId} AND start_time = ${startTime};
+WHERE source_id = ${sourceId} AND destination_id = ${destinationId};
