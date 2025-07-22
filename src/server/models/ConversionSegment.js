@@ -42,7 +42,15 @@ class ConversionSegment {
 	 * @returns The new conversion segment object.
 	 */
 	static mapRow(row) {
-		return new ConversionSegment(row.sourceId, row.destinationId, row.weekPatternsId, row.slope, row.intercept, row.startTime, row.endTime, row.note);
+		return new ConversionSegment(
+			row.source_id, 
+			row.destination_id, 
+			row.week_patterns_id, 
+			row.slope, 
+			row.intercept, 
+			row.start_time, 
+			row.end_time, 
+			row.note);
 	}
 
 	/**

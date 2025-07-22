@@ -42,9 +42,9 @@ class DaySegment {
      static mapRow(row) {
         return new DaySegment(
             row.id,
-            row.dayId,
-            row.startHour,
-            row.endHour,
+            row.day_id,
+            row.start_hour,
+            row.end_hour,
             row.slope,
             row.intercept,
             row.note

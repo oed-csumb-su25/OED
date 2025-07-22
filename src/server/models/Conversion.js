@@ -83,8 +83,7 @@ class Conversion {
 		};
 
 		await conn.none(sqlFile('conversion/insert_new_conversion.sql'), conversionData);
-		this.id = resp.id
-		
+
 		// insert new conversion segment
 		const conversionSegment = {
 			sourceId: this.sourceId,
