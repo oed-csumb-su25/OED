@@ -81,27 +81,33 @@ class Day {
      * @param conn The database connection to use.
      * @returns {Promise.<>}
      */
-    async insert(slope, intercept, conn) {
+    async insert(slope, intercept, segmentNote, conn) {
         const day = this;
+
         if (day.id !== undefined) {
             throw new Error(`Attempted to insert a day that already has an ID ${day.id}`);
         }
         
         // insert new day
-        const resp = await conn.one(sqlFile('day/insert_new_day_pattern.sql'), day);
+        const dayData = {
+            dayName: day.dayName,
+            note: day.note
+        };
+
+        const resp = await conn.one(sqlFile('day/insert_new_day_pattern.sql'), dayData);
         this.id = resp.id;
 
         // insert default day segment, including the new day id
-        const defaultSegment = {
+        const daySegment = {
             dayId: this.id,
             startHour: 0,
             endHour: 24,
             slope: slope,
             intercept: intercept,
-            note: this.note
+            note: segmentNote
         };
 
-        await conn.none(sqlFile('daySegment/insert_new_day_segment.sql'), defaultSegment);
+        await conn.none(sqlFile('daySegment/insert_new_day_segment.sql'), daySegment);
     }
 
     /**

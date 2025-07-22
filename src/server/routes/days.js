@@ -95,7 +95,7 @@ router.post('/edit', async (req, res) => {
 router.post('/add', async (req, res) => {
 	const validDay = {
 		type: 'object',
-		maxProperties: 4,
+		maxProperties: 5,
 		required: ['dayName', 'slope', 'intercept'],
 		properties: {
 			dayName: {
@@ -112,24 +112,38 @@ router.post('/add', async (req, res) => {
 					{ type: 'string' },
 					{ type: 'null' }
 				]
+			},
+			segmentNote: {
+				oneOf: [
+					{ type: 'string' },
+					{ type: 'null' }
+				]
 			}
 		}
 	};
 
 	const validatorResult = validate(req.body, validDay);
+
 	if (!validatorResult.valid) {
 		log.error(`Got request to insert day with invalid day data, errors: ${validatorResult.errors}`);
 		failure(res, 400, `Got request to insert day with invalid day data. Error(s): ${validatorResult.errors}`);
 	} else {
 		const conn = getConnection();
+
 		try {
+			// Insert 
 			await conn.tx(async t => {
 				const newDay = new Day(
 					undefined,
 					req.body.dayName,
 					req.body.note
 				);
-				await newDay.insert(req.body.slope, req.body.intercept, t);
+				await newDay.insert(
+					req.body.slope, 
+					req.body.intercept, 
+					req.body.segmentNote,
+					t
+				);
 			});
 			res.sendStatus(200);
 		} catch (err) {
