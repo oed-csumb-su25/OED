@@ -31,7 +31,7 @@ class DaySegment {
      * @returns {Promise.<>}
      */
     static createTable(conn) {
-        return conn.none(sqlFile('daySegments/create_day_segments_table.sql'));
+        return conn.none(sqlFile('daySegment/create_day_segments_table.sql'));
     }
 
     /**

@@ -37,7 +37,7 @@ class Week {
      * @returns {Promise.<>}
      */
     static createTable(conn) {
-        return conn.none(sqlFile('week/create_week_pattern_table.sql'));
+        return conn.none(sqlFile('week/create_week_patterns_table.sql'));
     }
 
     /**
