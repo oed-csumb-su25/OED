@@ -24,7 +24,7 @@ export const weeksApi = baseApi.injectEndpoints({
 					[{ type: 'Weeks', id: 'LIST' }]
 		}),
 
-		addWeek: builder.mutation<void, Week>({
+		addWeek: builder.mutation<void, Omit<Week, 'id'>>({
 			query: week => ({
 				url: 'api/weeks/add',
 				method: 'POST',

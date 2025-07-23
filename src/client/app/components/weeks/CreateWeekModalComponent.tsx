@@ -11,6 +11,7 @@ import { useAppSelector } from '../../redux/reduxHooks';
 import { selectDefaultCreateWeekValues } from '../../redux/selectors/adminSelectors';
 import { tooltipBaseStyle } from '../../styles/modalStyle';
 import { LocaleDataKey } from '../../translations/data';
+import { Week } from '../../types/redux/weeks';
 import { showErrorNotification, showSuccessNotification } from '../../utils/notifications';
 import translate from '../../utils/translate';
 import TooltipHelpComponent from '../TooltipHelpComponent';
@@ -44,7 +45,7 @@ export default function CreateWeekModalComponent(): React.ReactElement {
 	const defaultValues = useAppSelector(selectDefaultCreateWeekValues);
 
 	// State to hold the week details being created. Initialized with default values.
-	const [weekDetails, setWeekDetails] = React.useState(defaultValues);
+	const [weekDetails, setWeekDetails] = React.useState<Omit<Week, 'id'>>(defaultValues);
 
 	// Function to toggle the modal visibility
 	const toggleModal = () => setShowModal(!showModal);

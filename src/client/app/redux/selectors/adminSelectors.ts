@@ -11,6 +11,7 @@ import { selectSelectedLanguage } from '../../redux/slices/appStateSlice';
 import { ConversionData } from '../../types/redux/conversions';
 import { MeterData, MeterTimeSortType } from '../../types/redux/meters';
 import { DisableChecksType, UnitData, UnitType } from '../../types/redux/units';
+import { Week } from '../../types/redux/weeks';
 import { unitsCompatibleWithUnit } from '../../utils/determineCompatibleUnits';
 import { AreaUnitType } from '../../utils/getAreaUnitConversion';
 import { MAX_VAL, MIN_VAL, noUnitTranslated, potentialGraphicUnits } from '../../utils/input';
@@ -339,10 +340,9 @@ export const selectDefaultCreateConversionValues = createAppSelector(
 	}
 );
 
-export const selectDefaultCreateWeekValues = createAppSelector(
+export const selectDefaultCreateWeekValues = createAppSelector<[], Omit<Week, 'id'>>(
 	[],
 	() => ({
-		id: -99,
 		weekName: '',
 		note: '',
 		sunday: -999,
