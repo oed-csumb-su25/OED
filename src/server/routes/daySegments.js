@@ -8,7 +8,7 @@ const { getConnection } = require('../db');
 const DaySegment = require('../models/DaySegment');
 const { success, failure } = require('./response');
 const validate = require('jsonschema').validate;
-const { adminAuthMiddle } = require('./authenticator');
+const { adminAuthMiddleware } = require('./authenticator');
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ function formatDaySegmentForResponse(item) {
 /**
  * Route for getting all day segments.
  */
-router.get('/', adminAuthMiddle('get all day segments'), async (req, res) => {
+router.get('/', adminAuthMiddleware('get all day segments'), async (req, res) => {
 	const conn = getConnection();
 	try {
 		const rows = await DaySegment.getAll(conn);
@@ -40,7 +40,7 @@ router.get('/', adminAuthMiddle('get all day segments'), async (req, res) => {
 /**
  * Route for getting a day segment by id
  */
-router.get('/:id', adminAuthMiddle('get day segment by id'), async(req, res) => {
+router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res) => {
 	const validParams = {
 		type: 'object',
 		maxProperties: 1,
@@ -68,7 +68,7 @@ router.get('/:id', adminAuthMiddle('get day segment by id'), async(req, res) => 
 /**
  * Route for getting all day segments with the same day id
  */
-router.get('/dayId/:dayId', adminAuthMiddle('get day segments by day id'), async(req, res) => {
+router.get('/dayId/:dayId', adminAuthMiddleware('get day segments by day id'), async(req, res) => {
 	const validParams = {
 		type: 'object',
 		maxProperties: 1,
@@ -96,7 +96,7 @@ router.get('/dayId/:dayId', adminAuthMiddle('get day segments by day id'), async
 /**
  * Route for POST add day segment.
  */
-router.post('/add', adminAuthMiddle('add day segment'), async (req, res) => {
+router.post('/add', adminAuthMiddleware('add day segment'), async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
 		maxProperties: 6,
@@ -167,7 +167,7 @@ router.post('/add', adminAuthMiddle('add day segment'), async (req, res) => {
 /**
  * Route for POST, edit day segment.
  */
-router.post('/edit', adminAuthMiddle('edit day segment'), async (req, res) => {
+router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
 		maxProperties: 7,
@@ -234,7 +234,7 @@ router.post('/edit', adminAuthMiddle('edit day segment'), async (req, res) => {
 /**
  * Route for POST, delete day segment.
  */
-router.post('/delete', adminAuthMiddle('delete day segment'), async (req, res) => {
+router.post('/delete', adminAuthMiddleware('delete day segment'), async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
 		maxProperties: 7,
