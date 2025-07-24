@@ -206,9 +206,7 @@ async function insertConversions(conversionsToInsert, conn) {
 					await new Conversion(
 						sourceName, 
 						destinationName, 
-						conversionData.bidirectional, 
-						conversionData.slope, 
-						conversionData.intercept, 
+						conversionData.bidirectional,  
 						conversionData.note
 					).insert(
 						conversionData.weekPatternsId,
