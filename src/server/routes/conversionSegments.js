@@ -11,47 +11,6 @@ const validate = require('jsonschema').validate;
 const { adminAuthMiddleware } = require('./authenticator');
 
 const router = express.Router();
-const validConversionSegment = {
-    type: 'object',
-    maxProperties: 8,
-    required: ['sourceId', 'destinationId'],
-    properties: {
-        sourceId: {
-            type: 'number',
-            // Do not allow negatives for now
-            minimum: 0
-        },
-        destinationId: {
-            type: 'number',
-            // Do not allow negatives for now
-            minimum: 0
-        },
-        weekPatternsId: {
-            type: 'number',
-            minimum: 0
-        },
-        slope: {
-            type: 'number'
-        },
-        intercept: {
-            type: 'number'
-        },
-        startTime: {
-            type: 'string',
-            format: 'date-time'
-        },
-        endTime: {
-            type: 'string',
-            format: 'date-time'
-        },
-        note: {
-            oneOf: [
-                {type: 'string'},
-                {type: 'null'}
-            ]
-        }
-    }
-};
 
 function formatConversionSegmentForResponse(item) {
 	return {
@@ -85,23 +44,23 @@ router.get('/', adminAuthMiddleware('get all conversion segments'), async (req, 
  * @param {int} destinationId
  */
 router.get('/:sourceId/:destinationId', adminAuthMiddleware('get conversion segment by source and destination id'), async (req, res) => {
-    const validParams = {
+    const validConversionSegment = {
         type: 'object',
         maxProperties: 2,
         required: ['sourceId', 'destinationId'],
         properties: {
 			sourceId: { 
-                type: 'string', 
-                pattern: '^\\d+$' 
+                type: 'integer', 
+                minimum: 0
             },
 			destinationId: { 
-                type: 'string', 
-                pattern: '^\\d+$' 
+                type: 'integer', 
+                minimum: 0
             }
 		}
 	};
 
-    const validatorResult = validate(req.params, validParams);
+    const validatorResult = validate(req.params, validConversionSegment);
 
     if (!validatorResult.valid) {
 		log.warn(`Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
@@ -129,18 +88,18 @@ router.get('/:sourceId/:destinationId', adminAuthMiddleware('get conversion segm
  * @param {time} startTime
  */
 router.get('/:sourceId/:destinationId/:startTime', adminAuthMiddleware('get conversion segment by source id, destination id, and start time'), async (req, res) => {
-    const validParams = {
+    const validConversionSegment = {
         type: 'object',
         maxProperties: 3,
         required: ['sourceId', 'destinationId', 'startTime'],
         properties: {
 			sourceId: { 
-                type: 'string', 
-                pattern: '^\\d+$' 
+                type: 'integer', 
+                minimum: 0
             },
 			destinationId: { 
-                type: 'string', 
-                pattern: '^\\d+$' 
+                type: 'integer', 
+                minimum: 0
             },
 			startTime: { 
                 type: 'string', 
@@ -149,7 +108,7 @@ router.get('/:sourceId/:destinationId/:startTime', adminAuthMiddleware('get conv
 		}
 	};
 
-    const validatorResult = validate(req.params, validParams);
+    const validatorResult = validate(req.params, validConversionSegment);
 
     if (!validatorResult.valid) {
 		log.warn(`Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
@@ -175,6 +134,46 @@ router.get('/:sourceId/:destinationId/:startTime', adminAuthMiddleware('get conv
  * Route for POST add conversion segment.
  */
 router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, res) => {
+    const validConversionSegment = {
+        type: 'object',
+        maxProperties: 8,
+        required: ['sourceId', 'destinationId', 'slope', 'intercept', 'startTime', 'endTime'],
+        properties: {
+            sourceId: {
+                type: 'integer',
+                minimum: 0
+            },
+            destinationId: {
+                type: 'integer',
+                minimum: 0
+            },
+            weekPatternsId: {
+                type: 'integer',
+                minimum: 0
+            },
+            slope: {
+                type: 'number'
+            },
+            intercept: {
+                type: 'number'
+            },
+            startTime: {
+                type: 'string',
+                format: 'date-time'
+            },
+            endTime: {
+                type: 'string',
+                format: 'date-time'
+            },
+            note: {
+                oneOf: [
+                    {type: 'string'},
+                    {type: 'null'}
+                ]
+            }
+        }
+    };
+    
     const validatorResult = validate(req.body, validConversionSegment);
     if (!validatorResult.valid) {
 		log.warn(`Got request to add conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
@@ -207,6 +206,46 @@ router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, r
  * Route for POST, edit conversion segment.
  */
 router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req, res) => {
+    const validConversionSegment = {
+        type: 'object',
+        maxProperties: 8,
+        required: ['sourceId', 'destinationId', 'slope', 'intercept', 'startTime', 'endTime'],
+        properties: {
+            sourceId: {
+                type: 'integer',
+                minimum: 0
+            },
+            destinationId: {
+                type: 'integer',
+                minimum: 0
+            },
+            weekPatternsId: {
+                type: 'integer',
+                minimum: 0
+            },
+            slope: {
+                type: 'number'
+            },
+            intercept: {
+                type: 'number'
+            },
+            startTime: {
+                type: 'string',
+                format: 'date-time'
+            },
+            endTime: {
+                type: 'string',
+                format: 'date-time'
+            },
+            note: {
+                oneOf: [
+                    {type: 'string'},
+                    {type: 'null'}
+                ]
+            }
+        }
+    };
+
     const validatorResult = validate(req.body, validConversionSegment);
     if (!validatorResult.valid) {
 		log.warn(`Got request to edit conversion segments with invalid conversion segment data, errors: ${validatorResult.errors}`);
@@ -237,6 +276,25 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
  * Route for POST, delete conversion segment
  */
 router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (req, res) => {
+    const validConversionSegment = {
+        type: 'object',
+        maxProperties: 3,
+        required: ['sourceId', 'destinationId', 'startTime'],
+        properties: {
+            sourceId: {
+                type: 'integer',
+                minimum: 0
+            },
+            destinationId: {
+                type: 'integer',
+                minimum: 0
+            },
+            startTime: {
+                type: 'string',
+                format: 'date-time'
+            }
+        }
+    };
     // Ensure conversion segment object is valid
 	const validatorResult = validate(req.body, validConversionSegment);
 	if (!validatorResult.valid) {

@@ -123,7 +123,8 @@ router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'number'
+                type: 'integer', 
+                minimum: 0
 			},
 			dayName: {
 				type: 'string',
@@ -164,7 +165,8 @@ router.post('/delete', adminAuthMiddleware('delete day'), async (req, res) => {
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'number'
+                type: 'integer', 
+                minimum: 0
 			}
 		}
 	};

@@ -47,8 +47,8 @@ router.get('/:id', adminAuthMiddle('get day segment by id'), async(req, res) => 
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'string',
-				pattern: '^\\d+$'
+                type: 'integer', 
+                minimum: 0
 			}
 		}
 	};
@@ -75,8 +75,8 @@ router.get('/dayId/:dayId', adminAuthMiddle('get day segments by day id'), async
 		required: ['dayId'],
 		properties: {
 			dayId: {
-				type: 'string',
-				pattern: '^\\d+$'
+                type: 'integer', 
+                minimum: 0
 			}
 		}
 	};
@@ -104,7 +104,7 @@ router.post('/add', adminAuthMiddle('add day segment'), async (req, res) => {
 		additionalProperties: false,
 		properties: {
 			dayId: {
-				type: 'number',
+                type: 'integer', 
                 minimum: 0
 			},
             startHour: {
@@ -174,10 +174,11 @@ router.post('/edit', adminAuthMiddle('edit day segment'), async (req, res) => {
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'number'
+                type: 'integer', 
+                minimum: 0
 			},
 			dayId: {
-				type: 'number',
+                type: 'integer', 
                 minimum: 0
 			},
             startHour: {
@@ -240,10 +241,11 @@ router.post('/delete', adminAuthMiddle('delete day segment'), async (req, res) =
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'number'
+                type: 'integer', 
+                minimum: 0
 			},
 			dayId: {
-				type: 'number',
+                type: 'integer', 
                 minimum: 0
 			},
             startHour: {
