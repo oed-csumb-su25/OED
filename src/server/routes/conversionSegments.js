@@ -195,7 +195,7 @@ router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, r
                 );
                 await newConversionSegment.insert(t);
             });
-            res.sendStatus(200);
+            success(res, `Successfully added conversion segment`);
         } catch (err) {
 			log.error(`Error while inserting new conversion segment with error(s): ${err}`);
 			failure(res, 500, `Error while inserting new conversion segment with errors(s): ${err}`);
@@ -225,11 +225,11 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
                 req.body.note
             );
 			await updatedConversionSegment.update(conn);
+            success(res, `Successfully updated Conversion segment`);
 		} catch (err) {
 			log.error(`Error while editing conversion segment with error(s): ${err}`);
 			failure(res, 500, `Error while editing conversion segment with error(s): ${err}`);
 		}
-		success(res);
 	}
 });
 
@@ -252,11 +252,11 @@ router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (
                 req.body.destinationId, 
                 req.body.startTime,
                 conn);
+            success(res, 'Successfully deleted conversion segment');
 		} catch (err) {
 			log.error(`Error while deleting conversion segment with error(s): ${err}`);
 			failure(res, 500, `Error while deleting conversion segment with errors(s): ${err}`);
 		}
-		success(res, 'Successfully deleted conversion segment');
 	}
 });
 

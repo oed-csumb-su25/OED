@@ -104,7 +104,7 @@ router.post('/add', adminAuthMiddleware('add week'), async (req, res) => {
 				);
 				await newWeek.insert(t);
 			});
-			res.sendStatus(200);
+			success(res, `Successfully inserted week`);
 		} catch (err) {
 			log.error(`Error while inserting new week with error(s): ${err}`);
 			failure(res, 500, `Error while inserting new week with errors(s): ${err}`);
@@ -177,11 +177,11 @@ router.post('/edit', adminAuthMiddleware('edit week'), async (req, res) => {
                 req.body.saturday
             );
 			await updatedWeek.update(conn);
+			success(res, `Successfully updated week`);
 		} catch (err) {
-			log.error(`Error while editing week with error(s): ${err}`);
-			failure(res, 500, `Error while editing week with error(s): ${err}`);
+			log.error(`Error while updating week with error(s): ${err}`);
+			failure(res, 500, `Error while updating week with error(s): ${err}`);
 		}
-		success(res);
 	}
 });
 
@@ -214,11 +214,11 @@ router.post('/delete', adminAuthMiddleware('delete week'), async (req, res) => {
                 req.body.id, 
 				conn
             );
+			success(res, 'Successfully deleted week');
 		} catch (err) {
 			log.error(`Error while deleting week with error(s): ${err}`);
 			failure(res, 500, `Error while deleting week with errors(s): ${err}`);
 		}
-		success(res, 'Successfully deleted week');
 	}
 });
 

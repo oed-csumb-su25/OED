@@ -105,7 +105,7 @@ router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 					t
 				);
 			});
-			res.sendStatus(200);
+			success(res, `Successfully inserted day`);
 		} catch (err) {
 			log.error(`Error while inserting new day with error(s): ${err}`);
 			failure(res, 500, `Error while inserting new day with errors(s): ${err}`);
@@ -146,11 +146,11 @@ router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
 		try {
 			const updatedDay = new Day(req.body.id, req.body.dayName, req.body.note);
 			await updatedDay.update(conn);
+			success(res, `Successfully edited day`);
 		} catch (err) {
 			log.error(`Error while editing day with error(s): ${err}`);
 			failure(res, 500, `Error while editing day with error(s): ${err}`);
 		}
-		success(res);
 	}
 });
 
@@ -180,11 +180,11 @@ router.post('/delete', adminAuthMiddleware('delete day'), async (req, res) => {
 			// Don't worry about checking if the day already exists
 			// Just try to delete it to save the extra database call, since the database will return an error anyway if the row does not exist
 			await Day.delete(req.body.id, conn);
+			success(res, 'Successfully deleted day');
 		} catch (err) {
 			log.error(`Error while deleting day with error(s): ${err}`);
 			failure(res, 500, `Error while deleting day with errors(s): ${err}`);
 		}
-		success(res, 'Successfully deleted day');
 	}
 });
 

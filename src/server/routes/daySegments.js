@@ -155,7 +155,7 @@ router.post('/add', adminAuthMiddle('add day segment'), async (req, res) => {
 					);
 					await newDaySegment.insert(t);
 				});
-				res.sendStatus(200);
+				success(res, `Successfully inserted day segment`);
 			} catch (err) {
 				log.error(`Error while inserting new day segment with error(s): ${err}`);
 				failure(res, 500, `Error while inserting new day segment with errors(s): ${err}`);
@@ -222,11 +222,11 @@ router.post('/edit', adminAuthMiddle('edit day segment'), async (req, res) => {
                 req.body.note
             );
 			await updatedDaySegment.update(conn);
+			success(res, `Successfully updated day segment`);
 		} catch (err) {
-			log.error(`Error while editing day segment with error(s): ${err}`);
-			failure(res, 500, `Error while editing day segment with error(s): ${err}`);
+			log.error(`Error while updating day segment with error(s): ${err}`);
+			failure(res, 500, `Error while updating day segment with error(s): ${err}`);
 		}
-		success(res);
 	}
 });
 
@@ -282,11 +282,11 @@ router.post('/delete', adminAuthMiddle('delete day segment'), async (req, res) =
 			// Don't worry about checking if the day segment already exists
 			// Just try to delete it to save the extra database call, since the database will return an error anyway if the row does not exist
 			await DaySegment.delete(req.body.id, conn);
+			success(res, 'Successfully deleted day segment');
 		} catch (err) {
 			log.error(`Error while deleting day segment with error(s): ${err}`);
 			failure(res, 500, `Error while deleting day segment with errors(s): ${err}`);
 		}
-		success(res, 'Successfully deleted day segment');
 	}
 });
 
