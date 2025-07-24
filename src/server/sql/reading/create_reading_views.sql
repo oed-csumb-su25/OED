@@ -561,6 +561,34 @@ CREATE INDEX IF NOT EXISTS idx_meter_hourly_ordering_vB
     TABLESPACE pg_default;
 
 -- end Create meter_hourly_readings_unit_vB
+
+
+-- Materialized view for raw daily conversions (not thoroughly tested/does not incorporate time varying conversions)
+CREATE MATERIALIZED VIEW IF NOT EXISTS meter_raw_readings_unit 
+	AS SELECT 
+	r.meter_id as meter_id,
+	CASE 
+		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
+			-- If it is quantity readings then need to convert to rate per hour by dividing by the time length where
+			-- the 3600 is needed since EPOCH is in seconds.
+			SUM((r.reading / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) * c.slope + c.intercept) 
+		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
+			-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
+			-- to per hour.
+			SUM((r.reading * 3600 / u.sec_in_rate) * c.slope + c.intercept)
+	END AS reading_rate,
+	r.start_timestamp,
+    r.end_timestamp,
+	--tsrange(r.start_timestamp, r.end_timestamp, '[]') AS time_interval,
+	c.destination_id AS graphic_unit_id
+
+	FROM readings r
+	INNER JOIN meters m ON m.id = r.meter_id
+	INNER JOIN units u ON m.unit_id = u.id
+	INNER JOIN cik c on c.source_id = m.unit_id AND r.start_timestamp >= c.start_time AND r.end_timestamp <= c.end_time
+	GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, u.unit_represent;
+		
+
 /*
 
 */
@@ -973,16 +1001,36 @@ DECLARE
 
 		IF (current_point_accuracy = 'raw'::reading_line_accuracy) THEN
 			-- Gets raw meter data to graph.
-			RETURN QUERY
+			RETURN QUERY  --Modified to allow for raw time varying conversions.
 				SELECT r.meter_id as meter_id,
 				CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
 					-- If it is quantity readings then need to convert to rate per hour by dividing by the time length where
 					-- the 3600 is needed since EPOCH is in seconds.
-					((r.reading / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) * c.slope + c.intercept) 
+					(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600))  	-- Normalize to rate over reading interval
+					* SUM(																				--Wrapped in SUM to handle multiple matching cik conversions
+						-- Weight by conversion duration(intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
+        				 (EXTRACT(EPOCH FROM (
+            				upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+            				- 
+            				lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+          					)) / 3600)                     
+        				* c.slope + c.intercept															-- Apply conversion slope and intercept
+      				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600) 				-- Divide by reading interval for weighted sum
+
 				WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
 					-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
 					-- to per hour.
-					((r.reading * 3600 / u.sec_in_rate) * c.slope + c.intercept)
+					(r.reading * 3600 / u.sec_in_rate) 
+					* SUM(																				--Wrapped in SUM to handle multiple matching cik conversions
+						-- Weight by conversion duration(intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
+						 (EXTRACT(EPOCH FROM (
+							upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+							- 
+							lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+		  					)) / 3600)                     
+						* c.slope + c.intercept															-- Apply conversion slope and intercept
+	  				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600) 				-- Divide by reading interval for weighted sum
+
 				END AS reading_rate,
 				-- There is no range of values on raw/meter data so return NaN to indicate that.
 				-- The route will return this as null when it shows up in Redux state.
@@ -990,11 +1038,19 @@ DECLARE
 				cast('NaN' AS DOUBLE PRECISION) as max_rate,
 				r.start_timestamp,
 				r.end_timestamp
+
 				FROM (((readings r
 				INNER JOIN meters m ON m.id = current_meter_id)
-				INNER JOIN units u ON m.unit_id = u.id)
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
+				INNER JOIN units u ON m.unit_id = u.id)												
+				INNER JOIN cik c on c.source_id = m.unit_id 
+					AND c.destination_id = graphic_unit_id 
+					--The condition below was added for time varying conversions(allows for multiple cik rows to be applied to a single reading)
+					--ChatGPT helped with this line, I wasn't sure if the bounds should be inclusive or exclusive.
+					--The cik exclusive bounds '()' ensures no two conversions overlap.
+					AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 				WHERE lower(requested_range) <= r.start_timestamp AND r.end_timestamp <= upper(requested_range) AND r.meter_id = current_meter_id
+				-- Added GROUP BY to allow SUM to aggregate correctly across multiple rows.
+				GROUP BY r.meter_id, r.start_timestamp, r.end_timestamp, u.sec_in_rate, u.unit_represent
 				-- This ensures the data is sorted
 				ORDER BY r.start_timestamp ASC;
 		-- The first part is making sure that the number of hour points is 1440 or less.
