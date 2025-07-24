@@ -40,17 +40,6 @@ class Day {
     }
 
     /**
-     * Delete the day associated with the id
-     * @param {*} id The day id.
-     * @param {*} conn The connection to use.
-     */
-    static async delete(id, conn) {
-        await conn.none(sqlFile('day/delete_day.sql'), {
-            id: id
-        });
-    }
-
-    /**
      * Get all Day objects
      * @param {*} conn The database connection to use.
      * @returns all Day objects.
@@ -121,6 +110,17 @@ class Day {
             throw new Error('Attempted to update a day with no ID');
         }
         await conn.none(sqlFile('day/update_day_pattern.sql'), day);
+    }
+
+    /**
+     * Delete the day associated with the id
+     * @param {*} id The day id.
+     * @param {*} conn The connection to use.
+     */
+    static async delete(id, conn) {
+        await conn.none(sqlFile('day/delete_day.sql'), {
+            id: id
+        });
     }
 }
 
