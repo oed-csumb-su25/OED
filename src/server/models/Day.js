@@ -8,12 +8,12 @@ const sqlFile = database.sqlFile;
 class Day {
     /**
      * @param {*} id This day patterns' id.
-     * @param {*} dayName This day pattern's name.
+     * @param {*} name This day pattern's name.
      * @param {*} note Comments by the admin.
      */
-    constructor(id, dayName, note) {
+    constructor(id, name, note) {
         this.id = id;
-        this.dayName = dayName;
+        this.name = name;
         this.note = note;
     }
 
@@ -79,7 +79,7 @@ class Day {
         
         // insert new day
         const dayData = {
-            dayName: day.dayName,
+            name: day.name,
             note: day.note
         };
 

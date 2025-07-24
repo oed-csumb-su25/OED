@@ -15,7 +15,7 @@ const router = express.Router();
 function formatDayForResponse(item) {
 	return {
 		id: item.id, 
-        dayName: item.dayName, 
+        name: item.name, 
         note: item.note, 
 	};
 }
@@ -56,9 +56,9 @@ router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 	const validDay = {
 		type: 'object',
 		maxProperties: 5,
-		required: ['dayName', 'slope', 'intercept'],
+		required: ['name', 'slope', 'intercept'],
 		properties: {
-			dayName: {
+			name: {
 				type: 'string'
 			},
 			note: {
@@ -95,7 +95,7 @@ router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 			await conn.tx(async t => {
 				const newDay = new Day(
 					undefined,
-					req.body.dayName,
+					req.body.name,
 					req.body.note
 				);
 				await newDay.insert(
@@ -126,7 +126,7 @@ router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
                 type: 'integer', 
                 minimum: 0
 			},
-			dayName: {
+			name: {
 				type: 'string',
 			},
 			note: {
@@ -145,7 +145,7 @@ router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
 	} else {
 		const conn = getConnection();
 		try {
-			const updatedDay = new Day(req.body.id, req.body.dayName, req.body.note);
+			const updatedDay = new Day(req.body.id, req.body.name, req.body.note);
 			await updatedDay.update(conn);
 			success(res, `Successfully edited day`);
 		} catch (err) {
