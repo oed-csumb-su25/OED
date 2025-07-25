@@ -15,12 +15,12 @@ const router = express.Router();
 function formatDaySegmentForResponse(item) {
 	return {
 		id: item.id, 
-        dayId: item.dayId,
-        startHour: item.startHour,
-        endHour: item.endHour,
-        slope: item.slope,
-        intercept: item.intercept,
-        note: item.note, 
+		dayId: item.dayId,
+		startHour: item.startHour,
+		endHour: item.endHour,
+		slope: item.slope,
+		intercept: item.intercept,
+		note: item.note, 
 	};
 }
 
@@ -47,8 +47,8 @@ router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res)
 		required: ['id'],
 		properties: {
 			id: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			}
 		}
 	};
@@ -75,8 +75,8 @@ router.post('/segments', adminAuthMiddleware('get day segments by day id'), asyn
 		required: ['dayId'],
 		properties: {
 			dayId: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			}
 		}
 	};
@@ -104,25 +104,25 @@ router.post('/add', adminAuthMiddleware('add day segment'), async (req, res) => 
 		additionalProperties: false,
 		properties: {
 			dayId: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			},
-            startHour: {
-                type: 'number',
+			startHour: {
+				type: 'number',
 				minimum: 0,
 				maximum: 23
-            },
-            endHour: {
-                type: 'number',
+			},
+			endHour: {
+				type: 'number',
 				minimum: 1,
 				maximum: 24
-            },
-            slope: {
-                type: 'number'
-            },
-            intercept: {
-                type: 'number'
-            },
+			},
+			slope: {
+				type: 'number'
+			},
+			intercept: {
+				type: 'number'
+			},
 			note: {
 				oneOf: [
 					{ type: 'string' },
@@ -174,29 +174,29 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 		required: ['id'],
 		properties: {
 			id: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			},
 			dayId: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			},
-            startHour: {
-                type: 'number',
+			startHour: {
+				type: 'number',
 				minimum: 0,
 				maximum: 23
-            },
-            endHour: {
-                type: 'number',
+			},
+			endHour: {
+				type: 'number',
 				minimum: 1,
 				maximum: 24
-            },
-            slope: {
-                type: 'number'
-            },
-            intercept: {
-                type: 'number'
-            },
+			},
+			slope: {
+				type: 'number'
+			},
+			intercept: {
+				type: 'number'
+			},
 			note: {
 				oneOf: [
 					{ type: 'string' },
@@ -214,14 +214,14 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 		const conn = getConnection();
 		try {
 			const updatedDaySegment = new DaySegment(
-                req.body.id, 
-                req.body.dayId,
-                req.body.startHour,
-                req.body.endHour,
-                req.body.slope,
-                req.body.intercept, 
-                req.body.note
-            );
+				req.body.id, 
+				req.body.dayId,
+				req.body.startHour,
+				req.body.endHour,
+				req.body.slope,
+				req.body.intercept, 
+				req.body.note
+			);
 			await updatedDaySegment.update(conn);
 			success(res, `Successfully updated day segment`);
 		} catch (err) {
@@ -241,29 +241,29 @@ router.post('/delete', adminAuthMiddleware('delete day segment'), async (req, re
 		required: ['id'],
 		properties: {
 			id: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			},
 			dayId: {
-                type: 'integer', 
-                minimum: 0
+				type: 'integer', 
+				minimum: 0
 			},
-            startHour: {
-                type: 'number',
+			startHour: {
+				type: 'number',
 				minimum: 0,
 				maximum: 23
-            },
-            endHour: {
-                type: 'number',
+			},
+			endHour: {
+				type: 'number',
 				minimum: 1,
 				maximum: 24
-            },
-            slope: {
-                type: 'number'
-            },
-            intercept: {
-                type: 'number'
-            },
+			},
+			slope: {
+				type: 'number'
+			},
+			intercept: {
+				type: 'number'
+			},
 			note: {
 				oneOf: [
 					{ type: 'string' },

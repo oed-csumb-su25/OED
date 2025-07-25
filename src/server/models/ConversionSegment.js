@@ -6,26 +6,26 @@ const database = require('./database');
 const sqlFile = database.sqlFile;
 
 class ConversionSegment {
-    /**
-     * @param {*} sourceId The unit id of the source.
-     * @param {*} destinationId The unit id of the destination.
-     * @param {*} weekPatternsId The foreign key to the week_patterns if a pre-existing pattern is selected.
-     * @param {*} slope The slope of the conversion.
-     * @param {*} intercept The intercept of the conversion.
-     * @param {*} startTime The hour the segment starts.
-     * @param {*} endTime The hour the segment ends.
-     * @param {*} note Comments by the admin or OED inserted.
-     */
-    constructor(sourceId, destinationId, weekPatternsId, slope, intercept, startTime, endTime, note) {
-        this.sourceId = sourceId;
-        this.destinationId = destinationId;
-        this.weekPatternsId = weekPatternsId;
-        this.slope = slope;
-        this.intercept = intercept;
-        this.startTime = startTime;
-        this.endTime = endTime;
-        this.note = note;
-    }
+	/**
+	 * @param {*} sourceId The unit id of the source.
+	 * @param {*} destinationId The unit id of the destination.
+	 * @param {*} weekPatternsId The foreign key to the week_patterns if a pre-existing pattern is selected.
+	 * @param {*} slope The slope of the conversion.
+	 * @param {*} intercept The intercept of the conversion.
+	 * @param {*} startTime The hour the segment starts.
+	 * @param {*} endTime The hour the segment ends.
+	 * @param {*} note Comments by the admin or OED inserted.
+	 */
+	constructor(sourceId, destinationId, weekPatternsId, slope, intercept, startTime, endTime, note) {
+		this.sourceId = sourceId;
+		this.destinationId = destinationId;
+		this.weekPatternsId = weekPatternsId;
+		this.slope = slope;
+		this.intercept = intercept;
+		this.startTime = startTime;
+		this.endTime = endTime;
+		this.note = note;
+	}
 
 	/**
 	 * Returns a promise to create the conversion_segments table.
@@ -101,6 +101,7 @@ class ConversionSegment {
 	 */
 	async insert(conn) {
 		const conversionSegment = this;
+		
 		if (conversionSegment.id !== undefined) {
 			throw new Error(`Attempted to insert a conversion segment that already has an ID ${conversionSegment.id}`);
 		}
@@ -121,14 +122,14 @@ class ConversionSegment {
 	 * Deletes the conversion associated with source, destination, and startTime from the database.
 	 * @param {*} source The source unit id.
 	 * @param {*} destination The destination unit id.
-     * @param {*} startTime The time the segment starts.
+	 * @param {*} startTime The time the segment starts.
 	 * @param {*} conn The connection to use.
 	 */
 	static async delete(sourceId, destinationId, startTime, conn) {
 		await conn.none(sqlFile('conversionSegment/delete_conversion_segment.sql'), {
 			sourceId: sourceId,
 			destinationId: destinationId,
-            startTime: startTime
+			startTime: startTime
 		});
 	}
 }
