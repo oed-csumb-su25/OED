@@ -171,7 +171,7 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 	const validDaySegment = {
 		type: 'object',
 		maxProperties: 7,
-		required: ['id'],
+		required: ['id', 'dayId', 'startHour', 'endHour', 'slope', 'intercept'],
 		properties: {
 			id: {
 				type: 'integer', 
@@ -237,38 +237,12 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 router.post('/delete', adminAuthMiddleware('delete day segment'), async (req, res) => {
 	const validDaySegment = {
 		type: 'object',
-		maxProperties: 7,
+		maxProperties: 1,
 		required: ['id'],
 		properties: {
 			id: {
 				type: 'integer', 
 				minimum: 0
-			},
-			dayId: {
-				type: 'integer', 
-				minimum: 0
-			},
-			startHour: {
-				type: 'number',
-				minimum: 0,
-				maximum: 23
-			},
-			endHour: {
-				type: 'number',
-				minimum: 1,
-				maximum: 24
-			},
-			slope: {
-				type: 'number'
-			},
-			intercept: {
-				type: 'number'
-			},
-			note: {
-				oneOf: [
-					{ type: 'string' },
-					{ type: 'null' }
-				]
 			}
 		}
 	};
