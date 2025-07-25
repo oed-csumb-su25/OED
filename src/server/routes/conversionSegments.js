@@ -160,12 +160,10 @@ router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, r
 				type: 'number'
 			},
 			startTime: {
-				type: 'string',
-				format: 'date-time'
+				type: 'string'
 			},
 			endTime: {
-				type: 'string',
-				format: 'date-time'
+				type: 'string'
 			},
 			note: {
 				oneOf: [
@@ -232,12 +230,10 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 				type: 'number'
 			},
 			startTime: {
-				type: 'string',
-				format: 'date-time'
+				type: 'string'
 			},
 			endTime: {
-				type: 'string',
-				format: 'date-time'
+				type: 'string'
 			},
 			note: {
 				oneOf: [
@@ -292,8 +288,7 @@ router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (
 				minimum: 0
 			},
 			startTime: {
-				type: 'string',
-				format: 'date-time'
+				type: 'string'
 			}
 		}
 	};
