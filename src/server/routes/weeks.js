@@ -119,7 +119,7 @@ router.post('/edit', adminAuthMiddleware('edit week'), async (req, res) => {
 	const validWeek = {
 		type: 'object',
 		maxProperties: 10,
-		required: ['id'],
+		required: ['id', 'weekName', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
 		properties: {
 			id: {
 				type: 'integer', 
