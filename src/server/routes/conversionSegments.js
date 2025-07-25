@@ -39,11 +39,11 @@ router.get('/', adminAuthMiddleware('get all conversion segments'), async (req, 
 });
 
 /**
- * GET information for a specific conversion segment by source and destination
+ * GET information for conversion segment(s) by source and destination
  * @param {int} sourceId
  * @param {int} destinationId
  */
-router.get('/:sourceId/:destinationId', adminAuthMiddleware('get conversion segment by source and destination id'), async (req, res) => {
+router.post('/segments', adminAuthMiddleware('get conversion segment(s) by source and destination id'), async (req, res) => {
     const validConversionSegment = {
         type: 'object',
         maxProperties: 2,
@@ -60,7 +60,7 @@ router.get('/:sourceId/:destinationId', adminAuthMiddleware('get conversion segm
 		}
 	};
 
-    const validatorResult = validate(req.params, validConversionSegment);
+    const validatorResult = validate(req.body, validConversionSegment);
 
     if (!validatorResult.valid) {
 		log.warn(`Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
@@ -69,8 +69,8 @@ router.get('/:sourceId/:destinationId', adminAuthMiddleware('get conversion segm
 		const conn = getConnection();
 		try {
 			const rows = await ConversionSegment.getBySourceDestination(
-                req.params.sourceId, 
-                req.params.destinationId, 
+                req.body.sourceId, 
+                req.body.destinationId, 
                 conn
             );
 			res.json(rows);
@@ -87,7 +87,7 @@ router.get('/:sourceId/:destinationId', adminAuthMiddleware('get conversion segm
  * @param {int} destinationId
  * @param {time} startTime
  */
-router.get('/:sourceId/:destinationId/:startTime', adminAuthMiddleware('get conversion segment by source id, destination id, and start time'), async (req, res) => {
+router.post('/segment', adminAuthMiddleware('get conversion segment by source id, destination id, and start time'), async (req, res) => {
     const validConversionSegment = {
         type: 'object',
         maxProperties: 3,
@@ -102,13 +102,12 @@ router.get('/:sourceId/:destinationId/:startTime', adminAuthMiddleware('get conv
                 minimum: 0
             },
 			startTime: { 
-                type: 'string', 
-                format: 'date-time' 
+                type: 'string' 
             }
 		}
 	};
 
-    const validatorResult = validate(req.params, validConversionSegment);
+    const validatorResult = validate(req.body, validConversionSegment);
 
     if (!validatorResult.valid) {
 		log.warn(`Invalid route parameters for conversion segment, errors: ${validatorResult.errors}`);
@@ -116,12 +115,15 @@ router.get('/:sourceId/:destinationId/:startTime', adminAuthMiddleware('get conv
 	} else {
 		const conn = getConnection();
 		try {
-			const rows = await ConversionSegment.getBySourceDestinationStart(
-                req.params.sourceId, 
-                req.params.destinationId, 
-                req.params.startTime, 
+			const row = await ConversionSegment.getBySourceDestinationStart(
+                req.body.sourceId, 
+                req.body.destinationId, 
+                req.body.startTime, 
                 conn
             );
+            if (!row || row.length === 0) {
+                return res.sendStatus(404);
+            }
 			res.json(rows);
 		} catch (err) {
 			log.error(`Error while preforming GET on conversion segment : ${err}`, err);

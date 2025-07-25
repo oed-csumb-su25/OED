@@ -64,18 +64,18 @@ class ConversionSegment {
 	}
 
 	/**
-	 * Returns the conversion segment associated with source and destination. If the conversion segment doesn't exist then return null.
+	 * Returns the conversion segments associated with source and destination. If the conversion segment doesn't exist then return null.
 	 * @param {*} sourceId The source unit id.
 	 * @param {*} destinationId The destination unit id.
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<ConversionSegment>}
 	 */
 	static async getBySourceDestination(sourceId, destinationId, conn) {
-		const row = await conn.one(sqlFile('conversionSegment/get_by_source_destination.sql'), {
+		const rows = await conn.many(sqlFile('conversionSegment/get_by_source_destination.sql'), {
 			sourceId: sourceId,
 			destinationId: destinationId
 		});
-		return row === null ? null : ConversionSegment.mapRow(row);
+		return rows.map(ConversionSegment.mapRow);
 	}
 
 	/**
@@ -87,7 +87,7 @@ class ConversionSegment {
 	 * @returns {Promise.<ConversionSegment>}
 	 */
 	static async getBySourceDestinationStart(sourceId, destinationId, startTime, conn) {
-		const row = await conn.one(sqlFile('conversionSegment/get_by_source_destination_start.sql'), {
+		const row = await conn.oneOrNone(sqlFile('conversionSegment/get_by_source_destination_start.sql'), {
 			sourceId: sourceId,
 			destinationId: destinationId,
 			startTime: startTime

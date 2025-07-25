@@ -68,8 +68,8 @@ router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res)
 /**
  * Route for getting all day segments with the same day id
  */
-router.get('/dayId/:dayId', adminAuthMiddleware('get day segments by day id'), async(req, res) => {
-	const validParams = {
+router.post('/segments', adminAuthMiddleware('get day segments by day id'), async(req, res) => {
+	const validDaySegment = {
 		type: 'object',
 		maxProperties: 1,
 		required: ['dayId'],
@@ -80,12 +80,12 @@ router.get('/dayId/:dayId', adminAuthMiddleware('get day segments by day id'), a
 			}
 		}
 	};
-	if (!validate(req.params, validParams).valid) {
+	if (!validate(req.body, validDaySegment).valid) {
 		return res.status(400).json({error: 'Invalid dayId'});
 	} else {
 		const conn = getConnection();
 		try {
-			const rows = await DaySegment.getByDayId(req.params.dayId, conn);
+			const rows = await DaySegment.getByDayId(req.body.dayId, conn);
 			res.json(rows.map(formatDaySegmentForResponse));
 		} catch (err) {
 			log.error(`Error while performing GET day segments by dayId: ${err}`);
