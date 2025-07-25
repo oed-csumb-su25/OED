@@ -87,7 +87,7 @@ router.post('/segments', adminAuthMiddleware('get conversion segment(s) by sourc
  * @param {int} destinationId
  * @param {time} startTime
  */
-router.post('/segment', adminAuthMiddleware('get conversion segment by source id, destination id, and start time'), async (req, res) => {
+router.post('/segment', adminAuthMiddleware('get conversion segment by source id, destination id, start time'), async (req, res) => {
 	const validConversionSegment = {
 		type: 'object',
 		maxProperties: 3,
@@ -309,7 +309,9 @@ router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (
 				req.body.sourceId, 
 				req.body.destinationId, 
 				req.body.startTime,
-				conn);
+				req.body.endTime,
+				conn
+			);
 			success(res, 'Successfully deleted conversion segment');
 		} catch (err) {
 			log.error(`Error while deleting conversion segment with error(s): ${err}`);

@@ -101,7 +101,7 @@ class ConversionSegment {
 	 */
 	async insert(conn) {
 		const conversionSegment = this;
-		
+
 		if (conversionSegment.id !== undefined) {
 			throw new Error(`Attempted to insert a conversion segment that already has an ID ${conversionSegment.id}`);
 		}
@@ -123,13 +123,15 @@ class ConversionSegment {
 	 * @param {*} source The source unit id.
 	 * @param {*} destination The destination unit id.
 	 * @param {*} startTime The time the segment starts.
+	 * @param {*} endTime The time the segment ends.
 	 * @param {*} conn The connection to use.
 	 */
-	static async delete(sourceId, destinationId, startTime, conn) {
+	static async delete(sourceId, destinationId, startTime, endTime, conn) {
 		await conn.none(sqlFile('conversionSegment/delete_conversion_segment.sql'), {
 			sourceId: sourceId,
 			destinationId: destinationId,
-			startTime: startTime
+			startTime: startTime,
+			endTime: endTime
 		});
 	}
 }
