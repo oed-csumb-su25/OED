@@ -277,7 +277,7 @@ router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (
 	const validConversionSegment = {
 		type: 'object',
 		maxProperties: 3,
-		required: ['sourceId', 'destinationId', 'startTime'],
+		required: ['sourceId', 'destinationId', 'startTime', 'endTime'],
 		properties: {
 			sourceId: {
 				type: 'integer',
@@ -288,6 +288,9 @@ router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (
 				minimum: 0
 			},
 			startTime: {
+				type: 'string'
+			},
+			endTime: {
 				type: 'string'
 			}
 		}
