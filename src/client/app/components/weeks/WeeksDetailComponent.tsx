@@ -31,9 +31,9 @@ export default function WeeksDetailComponent() {
 	return (
 		<div className="flexGrowOne">
 			{isFetching ? (
-				<div className='text-center'>
+				<div className="d-flex flex-column align-items-center">
 					<SpinnerComponent loading width={50} height={50} />
-					<FormattedMessage id='redo.cik.and.refresh.db.views'></FormattedMessage>
+					<FormattedMessage id="redo.cik.and.refresh.db.views"></FormattedMessage>
 				</div>
 			) : (
 				<div>
