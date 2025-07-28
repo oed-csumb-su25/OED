@@ -155,8 +155,10 @@ router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, r
 				minimum: 0
 			},
 			weekPatternsId: {
-				type: 'integer',
-				minimum: 0
+				oneOf: [
+					{type: 'integer', minimum: 0},
+					{type: 'null'}
+				]
 			},
 			slope: {
 				type: 'number'
@@ -213,8 +215,8 @@ router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, r
 router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req, res) => {
 	const validConversionSegment = {
 		type: 'object',
-		maxProperties: 8,
-		required: ['sourceId', 'destinationId', 'slope', 'intercept', 'startTime', 'endTime'],
+		maxProperties: 10,
+		required: ['sourceId', 'destinationId', 'slope', 'intercept', 'startTime', 'endTime', 'originalStartTime', 'originalEndTime'],
 		properties: {
 			sourceId: {
 				type: 'integer',
@@ -225,8 +227,10 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 				minimum: 0
 			},
 			weekPatternsId: {
-				type: 'integer',
-				minimum: 0
+				oneOf: [
+					{type: 'integer', minimum: 0},
+					{type: 'null'}
+				]
 			},
 			slope: {
 				type: 'number'
@@ -241,6 +245,18 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 				type: 'string'
 			},
 			note: {
+				oneOf: [
+					{type: 'string'},
+					{type: 'null'}
+				]
+			},
+			originalStartTime: {
+				oneOf: [
+					{type: 'string'},
+					{type: 'null'}
+				]
+			},
+			originalEndTime: {
 				oneOf: [
 					{type: 'string'},
 					{type: 'null'}
@@ -266,7 +282,10 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 				req.body.endTime, 
 				req.body.note
 			);
-			await updatedConversionSegment.update(conn);
+			await updatedConversionSegment.update(
+				req.body.originalStartTime, 
+				req.body.originalEndTime, 
+				conn);
 			success(res, `Successfully updated Conversion segment`);
 		} catch (err) {
 			log.error(`Error while editing conversion segment with error(s): ${err}`);

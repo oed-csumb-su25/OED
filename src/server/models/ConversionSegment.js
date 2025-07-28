@@ -114,8 +114,12 @@ class ConversionSegment {
 	 * Updates an existed conversion segment in the database.
 	 * @param {*} conn The connection to use.
 	 */
-	async update(conn) {
-		const conversionSegment = this;
+	async update(originalStartTime, originalEndTime, conn) {
+		const conversionSegment = {
+			...this,
+			originalStartTime,
+			originalEndTime
+		};
 		await conn.none(sqlFile('conversionSegment/update_conversion_segment.sql'), conversionSegment);
 	}
 
