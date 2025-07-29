@@ -11,7 +11,7 @@ import { useAppSelector } from '../../redux/reduxHooks';
 import { selectIsAdmin } from '../../redux/slices/currentUserSlice';
 import { selectVisibleMeterAndGroupData } from '../../redux/selectors/adminSelectors';
 import { selectRefreshingReadings } from '../../redux/slices/appStateSlice';
-import { selectAllGroups, selectGroupDataResult } from '../../redux/api/groupsApi';
+import { selectGroupDataResult } from '../../redux/api/groupsApi';
 import TooltipMarkerComponent from '../TooltipMarkerComponent';
 import CreateGroupModalComponent from './CreateGroupModalComponent';
 import GroupViewComponent from './GroupViewComponent';
@@ -27,23 +27,19 @@ export default function GroupsDetailComponent() {
 
 	//Group state
 	const { status } = useAppSelector(selectGroupDataResult);
-	const groupData = useAppSelector(selectAllGroups);
-
 
 	// page may contain admin info so verify admin status while admin is authenticated.
 	authApi.useTokenPollQuery(undefined, { skip: !isAdmin, pollingInterval: authPollInterval });
 
 	// We only want displayable groups if non-admins because they still have non-displayable in state.
 	const { visibleGroups } = useAppSelector(state => selectVisibleMeterAndGroupData(state));
-selectGroupDataResult
+	selectGroupDataResult;
 	const tooltipStyle = {
 		...tooltipBaseStyle,
 		// Switch help depending if admin or not.
 		tooltipGroupView: isAdmin ? 'help.admin.groupview' : 'help.groups.groupview'
 	};
-
 	const isRefreshingReadings = useAppSelector(selectRefreshingReadings);	
-
 	return (
 		<div className='flexGrowOne'>
 			{status === QueryStatus.pending || isRefreshingReadings ? (

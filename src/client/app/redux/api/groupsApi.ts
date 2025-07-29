@@ -77,14 +77,14 @@ export const groupsApi = baseApi.injectEndpoints({
 				body: group
 			}),
 			onQueryStarted: async ({ shouldRefreshGroupsDeepMetersView }, { queryFulfilled, dispatch }) => {
-							await queryFulfilled;
+				await queryFulfilled;
 
-							if (shouldRefreshGroupsDeepMetersView) {
-								dispatch(groupsApi.endpoints.refreshGroups.initiate({}));
-							} else {
-								dispatch(groupsApi.util.invalidateTags(['GroupData', 'GroupChildrenData']));
-							}
-						},
+				if (shouldRefreshGroupsDeepMetersView) {
+					dispatch(groupsApi.endpoints.refreshGroups.initiate({}));
+				} else {
+					dispatch(groupsApi.util.invalidateTags(['GroupData', 'GroupChildrenData']));
+				}
+			},
 			invalidatesTags: ['GroupData', 'GroupChildrenData']
 		}),
 		refreshGroups: builder.mutation<void, {}>({

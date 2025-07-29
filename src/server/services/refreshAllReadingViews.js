@@ -5,30 +5,24 @@
  */
 
 const { log } = require('../log');
-
 const { getConnection } = require('../db');
 const Reading = require('../models/Reading');
 
-
-/*
+/** 
  * This function is changed from refreshing hourly and daily readings
  * views in parallel using Promise.all() into one by one because
  * daily readings calculation depends on hourly readings.
 */
-
 async function refreshAllReadingViews() {
 	const conn = getConnection();
-
 	// Refresh hourly readings view
 	log.info('Refreshing Materialized Hourly Reading View');
 	await Reading.refreshHourlyReadings(conn);
 	log.info('Materialized Hourly View Refreshed');
-
 	// Refresh daily readings view
 	log.info('Refreshing Materialized Daily Reading View');
 	await Reading.refreshDailyReadings(conn);
 	log.info('Materialized Daily View Refreshed');
-
 	// Refresh group views
 	log.info('Refreshing Group Reading Views');
 	await Promise.all([Reading.refreshGroupDailyReadings(conn), Reading.refreshGroupHourlyReadings(conn)]);

@@ -196,7 +196,7 @@ hourly_readings_unit
 				)
 			) / (
 				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 day'::INTERVAL)
+					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
 					-
 					greatest(r.start_timestamp, gen.interval_start)
 				)
@@ -239,6 +239,8 @@ daily_readings_unit
 	ORDER BY gen.interval_start, h.meter_id;
 
 -- TODO Check if needed and when to use as not done for hourly.
+-- With the index added in 3D readings, this should be consider as part of the decision
+-- on if this is needed.
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- We need a gist index to support the @> operation.
 CREATE INDEX if not exists idx_daily_readings_unit ON daily_readings_unit USING GIST(time_interval, meter_id);

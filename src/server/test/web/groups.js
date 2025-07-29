@@ -11,6 +11,7 @@ const Meter = require('../../models/Meter');
 const Point = require('../../models/Point');
 const User = require('../../models/User');
 const Unit = require('../../models/Unit');
+const { refreshGroupsDeepMetersView } = require('../../services/refreshGroupsDeepMetersView');
 const gpsPoint = new Point(90, 45);
 
 mocha.describe('groups API', () => {
@@ -55,6 +56,7 @@ mocha.describe('groups API', () => {
 		await Promise.all([groupA.adoptMeter(meterA.id, conn), groupA.adoptGroup(groupB.id, conn),
 		groupB.adoptGroup(groupC.id, conn), groupB.adoptMeter(meterB.id, conn),
 		groupC.adoptMeter(meterC.id, conn)]);
+		await refreshGroupsDeepMetersView();
 	});
 	mocha.describe('retrieval', () => {
 		mocha.it('returns the list of existing groups', async () => {
@@ -185,15 +187,19 @@ mocha.describe('groups API', () => {
 						const password = 'password';
 						const hashedPassword = await bcrypt.hash(password, 10);
 						const unauthorizedUser = new User(undefined, `${role}@example.com`, hashedPassword, User.role[role]);
+						console.log("Unauthorized user: ", unauthorizedUser);
 						await unauthorizedUser.insert(conn);
 						unauthorizedUser.password = password;
 
 						// login
 						res = await chai.request(app).post('/api/login')
 							.send({ username: unauthorizedUser.username, password: unauthorizedUser.password });
+						// console.log("Res:", res);
 						currentToken = res.body.token;
+						// console.log("CurrentToken:", currentToken);
 						// edit
 						res = await chai.request(app).put('/api/groups/edit').set('token', currentToken);
+						// console.log("Res:", res);
 						expect(res).to.have.status(expectedResponseStatus);
 					});
 
@@ -207,11 +213,14 @@ mocha.describe('groups API', () => {
 					0, 1, 'increasing', false, 25.5, '0001-01-01 23:59:59', '2020-07-02 01:00:10');
 				await meterD.insert(conn);
 				let res = await chai.request(app).put('/api/groups/edit').set('token', token).type('json').send({
-					id: groupC.id,
-					name: groupC.name,
-					displayable: groupC.displayable,
-					childGroups: [],
-					childMeters: [meterC.id, meterD.id]
+					editedGroup: {
+						id: groupC.id,
+						name: groupC.name,
+						displayable: groupC.displayable,
+						childGroups: [],
+						childMeters: [meterC.id, meterD.id]
+					},
+					shouldRefreshGroupsDeepMetersView: true
 				});
 				expect(res).to.have.status(200);
 
@@ -228,11 +237,14 @@ mocha.describe('groups API', () => {
 				const groupD = new Group(undefined, 'D', true, gpsPoint, 'notes 2', 43.5);
 				await groupD.insert(conn);
 				let res = await chai.request(app).put('/api/groups/edit').set('token', token).type('json').send({
-					id: groupC.id,
-					name: groupC.name,
-					displayable: groupC.displayable,
-					childGroups: [groupD.id],
-					childMeters: [meterC.id]
+					editedGroup: {
+						id: groupC.id,
+						name: groupC.name,
+						displayable: groupC.displayable,
+						childGroups: [groupD.id],
+						childMeters: [meterC.id]
+					}, 
+					shouldRefreshGroupsDeepMetersView: true
 				});
 				expect(res).to.have.status(200);
 
