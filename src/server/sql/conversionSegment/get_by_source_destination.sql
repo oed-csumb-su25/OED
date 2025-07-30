@@ -13,4 +13,4 @@ SELECT
     note
 FROM conversion_segments
 WHERE source_id = ${sourceId} AND destination_id = ${destinationId}
-ORDER BY start_time ASC;
+ORDER BY start_time::TIMESTAMP ASC;
