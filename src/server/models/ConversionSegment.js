@@ -87,7 +87,7 @@ class ConversionSegment {
 	 * @returns {Promise.<ConversionSegment>}
 	 */
 	static async getBySourceDestinationStartEnd(sourceId, destinationId, startTime, endTime, conn) {
-		const row = await conn.oneOrNone(sqlFile('conversionSegment/get_by_source_destination_start_end.sql'), {
+		const row = await conn.one(sqlFile('conversionSegment/get_by_source_destination_start_end.sql'), {
 			sourceId: sourceId,
 			destinationId: destinationId,
 			startTime: startTime,
