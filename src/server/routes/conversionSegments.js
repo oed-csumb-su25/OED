@@ -273,39 +273,21 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 	} else {
 		const conn = getConnection();
 		try {
-			await conn.tx(async t => {
 			const updatedConversionSegment = new ConversionSegment(
 				req.body.sourceId, 
 				req.body.destinationId, 
 				req.body.weekPatternsId, 
 				req.body.slope, 
 				req.body.intercept, 
-				req.body.startTime, 
+				req.body.startTime, 	
 				req.body.endTime, 
 				req.body.note
 			);
-
 			await updatedConversionSegment.update(
 				req.body.originalStartTime, 
 				req.body.originalEndTime, 
-				t);
-			
-
-			// verify -infinity to infinity time coverage
-			const validEdit = await validateFullTimeCoverage(
-				req.body.sourceId, 
-				req.body.destinationId, 
-				t,
-				res
+				conn
 			);
-
-			if (!validEdit) {
-				throw new Error('Invalid Edit Request');
-			}
-
-			});
-			
-
 			success(res, `Successfully updated Conversion segment`);
 		} catch (err) {
 			log.error(`Error while editing conversion segment with error(s): ${err}`);
@@ -363,27 +345,5 @@ router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (
 		}
 	}
 });
-
-const validateFullTimeCoverage = async (sourceId, destinationId, conn, res) => {
-	const segments = await ConversionSegment.getBySourceDestination(sourceId, destinationId, conn);
-
-	const segmentStartTime = segments[0].startTime;
-	const segmentEndTime = segments[segments.length - 1].endTime;
-
-	if (segmentStartTime !== '-infinity') {
-		log.error(`First segment must start at -infinity`);
-		failure(res, 400, `First segment must start at -infinity`);
-		return false;
-	}
-
-	if (segmentEndTime !== 'infinity') {
-		log.error(`Last segment must end at infinity`);
-		failure(res, 400, `Last segment must end at infinity`);
-		return false;
-	}
-
-	return true; 
-};
-
 
 module.exports = router;

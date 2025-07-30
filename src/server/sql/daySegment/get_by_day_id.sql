@@ -4,4 +4,5 @@
  
 SELECT * 
 FROM day_segments
-WHERE day_id = ${dayId};
+WHERE day_id = ${dayId}
+ORDER BY start_hour ASC;
