@@ -27,7 +27,7 @@ function formatConversionSegmentForResponse(item) {
 }
 
 /**
- * Route for getting all conversion segments.
+ * GET all conversion segments.
  */
 router.get('/', adminAuthMiddleware('get all conversion segments'), async (req, res) => {
 	const conn = getConnection();
@@ -40,7 +40,7 @@ router.get('/', adminAuthMiddleware('get all conversion segments'), async (req, 
 });
 
 /**
- * GET information for conversion segment(s) by source and destination
+ * POST get all conversion segment(s) by source id and destination id.
  * @param {int} sourceId
  * @param {int} destinationId
  */
@@ -83,11 +83,11 @@ router.post('/segments', adminAuthMiddleware('get conversion segment(s) by sourc
 });
 
 /**
- * GET information for a specific conversion segment by source, destination, start time, and end time
+ * POST get a conversion segment by source id, destination id, start time, and end time.
  * @param {int} sourceId
  * @param {int} destinationId
- * @param {time} startTime
- * @param {time} endTime
+ * @param {string} startTime
+ * @param {string} endTime
  */
 router.post('/segment', adminAuthMiddleware('get conversion segment by source id, destination id, start time, and end time'), async (req, res) => {
 	const validConversionSegment = {
@@ -139,7 +139,15 @@ router.post('/segment', adminAuthMiddleware('get conversion segment by source id
 });
 
 /**
- * Route for POST add conversion segment.
+ * POST add conversion segment.
+ * @param {int} sourceId
+ * @param {int} destinationId
+ * @param {int} weekPatternsId
+ * @param {number} slope
+ * @param {number} intercept
+ * @param {string} startTime
+ * @param {string} endTime
+ * @param {string} note
  */
 router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, res) => {
 	const validConversionSegment = {
@@ -211,7 +219,17 @@ router.post('/add', adminAuthMiddleware('add conversion segment'), async (req, r
 });
 
 /**
- * Route for POST, edit conversion segment.
+ * POST edit conversion segment.
+ * @param {int} sourceId
+ * @param {int} destinationId
+ * @param {int} weekPatternsId
+ * @param {number} slope
+ * @param {number} intercept
+ * @param {string} startTime
+ * @param {string} endTime
+ * @param {string} note
+ * @param {string} originalStartTime
+ * @param {string} originalEndTime
  */
 router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req, res) => {
 	const validConversionSegment = {
@@ -301,7 +319,11 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 });
 
 /**
- * Route for POST, delete conversion segment
+ * POST delete conversion segment.
+ * @param {int} sourceId
+ * @param {int} destinationId
+ * @param {string} startTime
+ * @param {string} endTime
  */
 router.post('/delete', adminAuthMiddleware('delete conversion segment'), async (req, res) => {
 	const validConversionSegment = {

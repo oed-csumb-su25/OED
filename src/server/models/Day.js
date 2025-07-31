@@ -50,7 +50,7 @@ class Day {
     }
 
     /** 
-     * Returns the day associated the the id. If the day doesn't exist then return null.
+     * Get the day associated the id. If the day doesn't exist then return null.
      * @param {*} id The day id.
      * @param {*} conn The connection to use.
      * @returns {Promise.<Day>}
@@ -63,11 +63,12 @@ class Day {
     }
 
     /**
-     * Insert this day into the database along with a default day segment.
-     * The default day segment spans from 00:00 to 24:00.
+     * Insert new day into the database along with a default day segment.
+     * The default day segment spans from 0 to 24.
      * Sets the day segments day_id property to the id of the newly created day.
-     * 
-     * @param conn The database connection to use.
+     * @param {*} slope The slope of the day segment
+     * @param {*} intercept The intercept of the day segment
+     * @param {*} conn The database connection to use.
      * @returns {Promise.<>}
      */
     async insert(slope, intercept, segmentNote, conn) {
@@ -106,7 +107,7 @@ class Day {
 
     /**
      * Returns a promise to update an existing day in the database.
-     * @param conn the connection to use.
+     * @param {*} conn the connection to use.
      * @returns {Promise.<>}
      */
     async update(conn) {

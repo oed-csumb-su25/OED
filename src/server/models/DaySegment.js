@@ -61,7 +61,8 @@ class DaySegment {
 	}
 
 	/** 
-	 * Returns the day segment associated the id. If the day segment doesn't exist then return null.
+	 * Returns the day segment associated the id. 
+	 * If the day segment doesn't exist then return null.
 	 * @param {*} id The day segment id.
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<DaySegment>}
@@ -74,7 +75,7 @@ class DaySegment {
 	}
 
 	/** 
-	 * Returns the day segments associated with the day id.
+	 * Returns all day segments associated with the day id.
 	 * @param {*} dayId The day pattern id.
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<DaySegment>}
@@ -88,7 +89,6 @@ class DaySegment {
 
 	/**
 	 * Returns a promise to insert the day segment.
-	 * 
 	 * @param {*} conn The connection to be used
 	 * @returns {Promise.<void>}
 	 */
@@ -103,8 +103,10 @@ class DaySegment {
 	}
 	
 	/**
-	 * Returns a promise to update an existing daySegment in the database.
-	 * @param conn the connection to use.
+	 * Returns a promise to update a daySegment in the database.
+	 * @param {*} originalStartHour The original start hour of the segment being updated
+	 * @param {*} originalEndHour The original end hour of the segment being updated
+	 * @param {*} conn the connection to use.
 	 * @returns {Promise.<>}
 	 */
 	async update(originalStartHour, originalEndHour, conn, res) {

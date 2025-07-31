@@ -25,7 +25,7 @@ function formatDaySegmentForResponse(item) {
 }
 
 /**
- * Route for getting all day segments.
+ * GET all day segments.
  */
 router.get('/', adminAuthMiddleware('get all day segments'), async (req, res) => {
 	const conn = getConnection();
@@ -38,7 +38,7 @@ router.get('/', adminAuthMiddleware('get all day segments'), async (req, res) =>
 });
 
 /**
- * Route for getting a day segment by id
+ * GET day segment by id
  */
 router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res) => {
 	const validParams = {
@@ -69,7 +69,8 @@ router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res)
 });
 
 /**
- * Route for getting all day segments with the same day id
+ * POST get all day segments by dayId
+ * @param {integer} dayId
  */
 router.post('/segments', adminAuthMiddleware('get day segments by day id'), async(req, res) => {
 	const validDaySegment = {
@@ -97,7 +98,13 @@ router.post('/segments', adminAuthMiddleware('get day segments by day id'), asyn
 });
 
 /**
- * Route for POST add day segment.
+ * POST add day segment.
+ * @param {integer} dayId
+ * @param {number} startHour
+ * @param {number} endHour
+ * @param {number} slope
+ * @param {number} intercept
+ * @param {string} note
  */
 router.post('/add', adminAuthMiddleware('add day segment'), async (req, res) => {
 	const validDaySegment = {
@@ -168,7 +175,16 @@ router.post('/add', adminAuthMiddleware('add day segment'), async (req, res) => 
 });
 
 /**
- * Route for POST, edit day segment.
+ * POST edit day segment.
+ * @param {integer} id
+ * @param {integer} dayId
+ * @param {number} startHour
+ * @param {number} endHour
+ * @param {number} slope
+ * @param {number} intercept
+ * @param {string} note
+ * @param {number} originalStartHour
+ * @param {number} originalEndHour
  */
 router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) => {
 	const validDaySegment = {
@@ -253,7 +269,8 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 });
 
 /**
- * Route for POST, delete day segment.
+ * POST delete day segment.
+ * @param {integer} id
  */
 router.post('/delete', adminAuthMiddleware('delete day segment'), async (req, res) => {
 	const validDaySegment = {

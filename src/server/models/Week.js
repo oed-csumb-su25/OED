@@ -71,7 +71,7 @@ class Week {
 	}
 
 	/** 
-	 * Returns the week associated the the id. If the week doesn't exist then return null.
+	 * Get the week associated with id. If the week doesn't exist then return null.
 	 * @param {*} id The week id.
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<Week>}
@@ -85,7 +85,7 @@ class Week {
 
 	/**
 	 * Returns a promise to insert this week into the database
-	 * @param conn The database connection to use.
+	 * @param {*} conn The database connection to use.
 	 * @returns {Promise.<>}
 	 */
 	async insert(conn) {
@@ -101,7 +101,7 @@ class Week {
 
 	/**
 	 * Returns a promise to update an existing day in the database.
-	 * @param conn the connection to use.
+	 * @param {*} conn the connection to use.
 	 * @returns {Promise.<>}
 	 */
 	async update(conn) {

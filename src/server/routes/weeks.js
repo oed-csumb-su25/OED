@@ -28,7 +28,7 @@ function formatWeekForResponse(item) {
 }
 
 /**
- * Route for getting all weeks.
+ * GET all weeks.
  */
 router.get('/', adminAuthMiddleware('get all weeks'), async (req, res) => {
 	const conn = getConnection();
@@ -41,7 +41,7 @@ router.get('/', adminAuthMiddleware('get all weeks'), async (req, res) => {
 });
 
 /**
- * Route for getting a week by id
+ * GET week by id
  */
 router.get('/:id', adminAuthMiddleware('get week by id'), async(req, res) => {
 	const validParams = {
@@ -72,7 +72,16 @@ router.get('/:id', adminAuthMiddleware('get week by id'), async(req, res) => {
 });
 
 /**
- * Route for POST add week.
+ * POST add week.
+ * @param {string} weekName
+ * @param {string} note
+ * @param {number} sunday
+ * @param {number} monday
+ * @param {number} tuesday
+ * @param {number} wednesday
+ * @param {number} thursday
+ * @param {number} friday
+ * @param {number} saturday
  */
 router.post('/add', adminAuthMiddleware('add week'), async (req, res) => {
 	const validWeek= {
@@ -144,7 +153,17 @@ router.post('/add', adminAuthMiddleware('add week'), async (req, res) => {
 });
 
 /**
- * Route for POST, edit week.
+ * POST edit week.
+ * @param {integer} id
+ * @param {string} weekName
+ * @param {string} note
+ * @param {number} sunday
+ * @param {number} monday
+ * @param {number} tuesday
+ * @param {number} wednesday
+ * @param {number} thursday
+ * @param {number} friday
+ * @param {number} saturday
  */
 router.post('/edit', adminAuthMiddleware('edit week'), async (req, res) => {
 	const validWeek = {
@@ -218,7 +237,8 @@ router.post('/edit', adminAuthMiddleware('edit week'), async (req, res) => {
 });
 
 /**
- * Route for POST, delete week.
+ * POST delete week.
+ * @param {integer} id
  */
 router.post('/delete', adminAuthMiddleware('delete week'), async (req, res) => {
 	const validWeek = {

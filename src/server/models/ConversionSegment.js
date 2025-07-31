@@ -55,7 +55,7 @@ class ConversionSegment {
 	}
 
 	/**
-	 * Get all conversion segments in the database.
+	 * Get all conversion segments.
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<Array.<ConversionSegment>>}
 	 */
@@ -65,7 +65,8 @@ class ConversionSegment {
 	}
 
 	/**
-	 * Returns the conversion segments associated with source and destination. If the conversion segment doesn't exist then return null.
+	 * Get all conversion segments associated with the source and destination id. 
+	 * If the conversion segment doesn't exist then return null.
 	 * @param {*} sourceId The source unit id.
 	 * @param {*} destinationId The destination unit id.
 	 * @param {*} conn The connection to use.
@@ -80,10 +81,12 @@ class ConversionSegment {
 	}
 
 	/**
-	 * Returns the conversion segment associated with source, destination, and startTime. If the conversion segment doesn't exist then return null.
+	 * Returns the conversion segment associated with source, destination, startTime, and endTime. 
+	 * If the conversion segment doesn't exist then return null.
 	 * @param {*} sourceId The source unit id.
 	 * @param {*} destinationId The destination unit id.
 	 * @param {*} startTime The conversion segment start time
+	 * @param {*} endTime The conversion segment end time
 	 * @param {*} conn The connection to use.
 	 * @returns {Promise.<ConversionSegment>}
 	 */
@@ -114,6 +117,8 @@ class ConversionSegment {
 
 	/**
 	 * Updates an existed conversion segment in the database.
+	 * @param {*} originalStartTime The original start time of the segment being updated
+	 * @param {*} originalEndTime The original end time of the segment being updated
 	 * @param {*} conn The connection to use.
 	 */
 	async update(originalStartTime, originalEndTime, conn, res) {
@@ -165,9 +170,9 @@ class ConversionSegment {
 }
 
 	/**
-	 * Deletes the conversion associated with source, destination, and startTime from the database.
-	 * @param {*} source The source unit id.
-	 * @param {*} destination The destination unit id.
+	 * Deletes the conversion associated with the source, destination, start time, and end time from the database.
+	 * @param {*} sourceId The source unit id.
+	 * @param {*} destinationId The destination unit id.
 	 * @param {*} startTime The time the segment starts.
 	 * @param {*} endTime The time the segment ends.
 	 * @param {*} conn The connection to use.
