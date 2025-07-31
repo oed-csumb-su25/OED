@@ -501,7 +501,8 @@ meter_daily_readings_unit
 	ORDER BY h.meter_id, graphic_unit_id, gen.interval_start;
 
 CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/bar/compare functions.
---CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
+-- This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
+-- CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); 
 
 
 /*
@@ -693,165 +694,8 @@ max_raw_points: The maximum number of data points to return if using the raw poi
 max_hour_points: The maximum number of data points to return if using the hour view. Only used if 'auto' for point_accuracy.
 Details on how this function works can be found in the devDocs in the resource generalization document.
  */
-CREATE OR REPLACE FUNCTION meter_line_readings_unit (
-	meter_ids INTEGER[],
-	graphic_unit_id INTEGER,
-	start_stamp TIMESTAMP,
-	end_stamp TIMESTAMP,
-	point_accuracy reading_line_accuracy,
-	max_raw_points INTEGER,
-	max_hour_points INTEGER
-)
-	RETURNS TABLE(meter_id INTEGER, reading_rate FLOAT, min_rate FLOAT, max_rate FLOAT, start_timestamp TIMESTAMP, end_timestamp TIMESTAMP)
-AS $$
-DECLARE
-	requested_range TSRANGE;
-	requested_interval INTERVAL;
-	requested_interval_seconds INTEGER;
-	frequency INTERVAL;
-	frequency_seconds INTEGER;
-	-- Which index of the meter_id array you are currently working on.
-	current_meter_index INTEGER := 1;
-	-- The id of the meter index working on
-	current_meter_id INTEGER;
-	-- Holds accuracy for current meter.
-	current_point_accuracy reading_line_accuracy;
-	BEGIN
-	-- For each frequency of points, verify that you will get the minimum graphing points to use for each meter.
-	-- Start with the raw, then hourly and then daily if others will not work.
-	-- Loop over all meters.
-	WHILE current_meter_index <= cardinality(meter_ids) LOOP
-		-- Reset the point accuracy for each meter so it does what is desired.
-		current_point_accuracy := point_accuracy;
-		current_meter_id := meter_ids[current_meter_index];
-		-- Make sure the time range is within the reading values for this meter.
-		-- There may be a better way to create the array with one element as last argument.
-		requested_range := shrink_tsrange_to_real_readings(tsrange(start_stamp, end_stamp, '[]'), array_append(ARRAY[]::INTEGER[], current_meter_id));
-		IF (current_point_accuracy = 'auto'::reading_line_accuracy) THEN
-			-- The request wants automatic calculation of the points returned.
-
-			-- The request_range will still be infinity if there is no meter data. This causes the
-			-- auto calculation to fail because you cannot subtract them.
-			-- Just check the upper range since simpler.
-			IF (upper(requested_range) = 'infinity') THEN
-				-- We know there is no data but easier to just let a query happen since fast.
-				-- Do daily since that should be the fastest due to the least data in most cases.
-				current_point_accuracy := 'daily'::reading_line_accuracy;
-			ELSE
-				-- The interval of time for the requested_range.
-				requested_interval := upper(requested_range) - lower(requested_range);
-				-- Get the seconds in the interval.
-				-- Wanted to use the INTO syntax used above but could not get it to work so using the set syntax.
-				requested_interval_seconds := (SELECT * FROM EXTRACT(EPOCH FROM requested_interval));
-				-- Get the frequency that this meter reads at.
-				SELECT reading_frequency INTO frequency FROM meters WHERE id = current_meter_id;
-				-- Get the seconds in the frequency.
-				frequency_seconds := (SELECT * FROM EXTRACT(EPOCH FROM frequency));
-
-				-- The first part is making sure that there are no more than maximum raw readings to graph if use raw readings.
-				-- Divide the time being graphed by the frequency of reading for this meter to get the number of raw readings.
-				-- The second part checks if the frequency of raw readings is more than a day and use raw if this is the case
-				-- because even daily would interpolate points. 1 day is 24 hours * 60 minute/hour * 60 seconds/minute = 86400 seconds.
-				-- This can lead to too many points but do this for now since that is unlikely as you would need around 4+ years of data.
-				-- Note this overrides the max raw points if it applies.
-				IF ((requested_interval_seconds / frequency_seconds <= max_raw_points) OR (frequency_seconds >= 86400)) THEN
-					-- Return raw meter data.
-					current_point_accuracy := 'raw'::reading_line_accuracy;
-				-- The first part is making sure that the number of hour points is no more than maximum hourly readings.
-				-- Thus, check if no more than interval in seconds / (60 seconds/minute * 60 minutes/hour) = # hours in interval.
-				-- The second part is making sure that the frequency of reading is an hour or less (3600 seconds)
-				-- so you don't interpolate points by using the hourly data.
-				ELSIF ((requested_interval_seconds / 3600 <= max_hour_points) AND (frequency_seconds <= 3600)) THEN
-					-- Return hourly reading data.
-					current_point_accuracy := 'hourly'::reading_line_accuracy;
-				ELSE
-					-- Return daily reading data.
-					current_point_accuracy := 'daily'::reading_line_accuracy;
-				END IF;
-			END IF;
-		END IF;
-		-- At this point current_point_accuracy should never be 'auto'.
-
-		IF (current_point_accuracy = 'raw'::reading_line_accuracy) THEN
-			-- Gets raw meter data to graph.
-			RETURN QUERY
-				SELECT r.meter_id as meter_id,
-				CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-					-- If it is quantity readings then need to convert to rate per hour by dividing by the time length where
-					-- the 3600 is needed since EPOCH is in seconds.
-					((r.reading / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) * c.slope + c.intercept) 
-				WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-					-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
-					-- to per hour.
-					((r.reading * 3600 / u.sec_in_rate) * c.slope + c.intercept)
-				END AS reading_rate,
-				-- There is no range of values on raw/meter data so return NaN to indicate that.
-				-- The route will return this as null when it shows up in Redux state.
-				cast('NaN' AS DOUBLE PRECISION) AS min_rate,
-				cast('NaN' AS DOUBLE PRECISION) as max_rate,
-				r.start_timestamp,
-				r.end_timestamp
-				FROM (((readings r
-				INNER JOIN meters m ON m.id = current_meter_id)
-				INNER JOIN units u ON m.unit_id = u.id)
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
-				WHERE lower(requested_range) <= r.start_timestamp AND r.end_timestamp <= upper(requested_range) AND r.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY r.start_timestamp ASC;
-		-- The first part is making sure that the number of hour points is 1440 or less.
-		-- Thus, check if no more than 1440 hours * 60 minutes/hour * 60 seconds/hour = 5184000 seconds.
-		-- The second part is making sure that the frequency of reading is an hour or less (3600 seconds)
-		-- so you don't interpolate points by using the hourly data.
-		ELSIF (current_point_accuracy = 'hourly'::reading_line_accuracy) THEN
-			-- Get hourly points to graph. See daily for more comments.
-			RETURN QUERY
-				SELECT hourly.meter_id AS meter_id,
-					-- Convert the reading based on the conversion found below.
-					-- Hourly readings are already averaged correctly into a rate.
-					hourly.reading_rate * c.slope + c.intercept as reading_rate,
-					hourly.min_rate * c.slope + c.intercept AS min_rate,
-					hourly.max_rate * c.slope + c.intercept AS max_rate,
-					lower(hourly.time_interval) AS start_timestamp,
-					upper(hourly.time_interval) AS end_timestamp
-				FROM ((hourly_readings_unit hourly
-				INNER JOIN meters m ON m.id = current_meter_id)
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
-				WHERE requested_range @> time_interval AND hourly.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY start_timestamp ASC;
-		ELSE
-			-- Get daily points to graph. This should be an okay number but can be too many
-			-- if there are a lot of days of readings.
-			-- TODO Someday consider averaging days if too many.
-			RETURN QUERY
-				SELECT
-					daily.meter_id AS meter_id,
-					-- Convert the reading based on the conversion found below.
-					-- Daily readings are already averaged correctly into a rate.
-					daily.reading_rate * c.slope + c.intercept as reading_rate,
-					daily.min_rate * c.slope + c.intercept AS min_rate,
-					daily.max_rate * c.slope + c.intercept AS max_rate,
-					lower(daily.time_interval) AS start_timestamp,
-					upper(daily.time_interval) AS end_timestamp
-				FROM ((daily_readings_unit daily
-				-- Get all the meter_ids in the passed array of meters.
-				-- This sequence of joins takes the meter id to its unit and a unit.
-				INNER JOIN meters m ON m.id = current_meter_id)
-				-- This is getting the conversion for the meter and unit to graph.
-				-- The slope and intercept are used above the transform the reading to the desired unit.
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
-				WHERE requested_range @> time_interval AND daily.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY start_timestamp ASC;
-		END IF;
-		current_meter_index := current_meter_index + 1;
-	END LOOP;
-END;
-$$ LANGUAGE 'plpgsql';
-
-
 -- New version of meter_line_readings_unit that uses the new views.
-CREATE OR REPLACE FUNCTION meter_line_readings_unit_v2 (
+CREATE OR REPLACE FUNCTION meter_line_readings_unit (
 	meter_ids INTEGER[],
 	g_unit_id INTEGER, -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
 	start_stamp TIMESTAMP,
@@ -875,161 +719,6 @@ DECLARE
 	-- Holds accuracy for current meter.
 	current_point_accuracy reading_line_accuracy;
 	g_unit_id INTEGER := g_unit_id;
-	BEGIN
-	-- For each frequency of points, verify that you will get the minimum graphing points to use for each meter.
-	-- Start with the raw, then hourly and then daily if others will not work.
-	-- Loop over all meters.
-	WHILE current_meter_index <= cardinality(meter_ids) LOOP
-		-- Reset the point accuracy for each meter so it does what is desired.
-		current_point_accuracy := point_accuracy;
-		current_meter_id := meter_ids[current_meter_index];
-		-- Make sure the time range is within the reading values for this meter.
-		-- There may be a better way to create the array with one element as last argument.
-		requested_range := shrink_tsrange_to_real_readings(tsrange(start_stamp, end_stamp, '[]'), array_append(ARRAY[]::INTEGER[], current_meter_id));
-		IF (current_point_accuracy = 'auto'::reading_line_accuracy) THEN
-			-- The request wants automatic calculation of the points returned.
-
-			-- The request_range will still be infinity if there is no meter data. This causes the
-			-- auto calculation to fail because you cannot subtract them.
-			-- Just check the upper range since simpler.
-			IF (upper(requested_range) = 'infinity') THEN
-				-- We know there is no data but easier to just let a query happen since fast.
-				-- Do daily since that should be the fastest due to the least data in most cases.
-				current_point_accuracy := 'daily'::reading_line_accuracy;
-			ELSE
-				-- The interval of time for the requested_range.
-				requested_interval := upper(requested_range) - lower(requested_range);
-				-- Get the seconds in the interval.
-				-- Wanted to use the INTO syntax used above but could not get it to work so using the set syntax.
-				requested_interval_seconds := (SELECT * FROM EXTRACT(EPOCH FROM requested_interval));
-				-- Get the frequency that this meter reads at.
-				SELECT reading_frequency INTO frequency FROM meters WHERE id = current_meter_id;
-				-- Get the seconds in the frequency.
-				frequency_seconds := (SELECT * FROM EXTRACT(EPOCH FROM frequency));
-
-				-- The first part is making sure that there are no more than maximum raw readings to graph if use raw readings.
-				-- Divide the time being graphed by the frequency of reading for this meter to get the number of raw readings.
-				-- The second part checks if the frequency of raw readings is more than a day and use raw if this is the case
-				-- because even daily would interpolate points. 1 day is 24 hours * 60 minute/hour * 60 seconds/minute = 86400 seconds.
-				-- This can lead to too many points but do this for now since that is unlikely as you would need around 4+ years of data.
-				-- Note this overrides the max raw points if it applies.
-				IF ((requested_interval_seconds / frequency_seconds <= max_raw_points) OR (frequency_seconds >= 86400)) THEN
-					-- Return raw meter data.
-					current_point_accuracy := 'raw'::reading_line_accuracy;
-				-- The first part is making sure that the number of hour points is no more than maximum hourly readings.
-				-- Thus, check if no more than interval in seconds / (60 seconds/minute * 60 minutes/hour) = # hours in interval.
-				-- The second part is making sure that the frequency of reading is an hour or less (3600 seconds)
-				-- so you don't interpolate points by using the hourly data.
-				ELSIF ((requested_interval_seconds / 3600 <= max_hour_points) AND (frequency_seconds <= 3600)) THEN
-					-- Return hourly reading data.
-					current_point_accuracy := 'hourly'::reading_line_accuracy;
-				ELSE
-					-- Return daily reading data.
-					current_point_accuracy := 'daily'::reading_line_accuracy;
-				END IF;
-			END IF;
-		END IF;
-		-- At this point current_point_accuracy should never be 'auto'.
-
-		IF (current_point_accuracy = 'raw'::reading_line_accuracy) THEN
-			-- Gets raw meter data to graph.
-			RETURN QUERY
-				SELECT r.meter_id as meter_id,
-				CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-					-- If it is quantity readings then need to convert to rate per hour by dividing by the time length where
-					-- the 3600 is needed since EPOCH is in seconds.
-					((r.reading / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) * c.slope + c.intercept) 
-				WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-					-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
-					-- to per hour.
-					((r.reading * 3600 / u.sec_in_rate) * c.slope + c.intercept)
-				END AS reading_rate,
-				-- There is no range of values on raw/meter data so return NaN to indicate that.
-				-- The route will return this as null when it shows up in Redux state.
-				cast('NaN' AS DOUBLE PRECISION) AS min_rate,
-				cast('NaN' AS DOUBLE PRECISION) as max_rate,
-				r.start_timestamp,
-				r.end_timestamp
-				FROM (((readings r
-				INNER JOIN meters m ON m.id = current_meter_id)
-				INNER JOIN units u ON m.unit_id = u.id)
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = g_unit_id)
-				WHERE lower(requested_range) <= r.start_timestamp AND r.end_timestamp <= upper(requested_range) AND r.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY r.start_timestamp ASC;
-		-- The first part is making sure that the number of hour points is 1440 or less.
-		-- Thus, check if no more than 1440 hours * 60 minutes/hour * 60 seconds/hour = 5184000 seconds.
-		-- The second part is making sure that the frequency of reading is an hour or less (3600 seconds)
-		-- so you don't interpolate points by using the hourly data.
-		ELSIF (current_point_accuracy = 'hourly'::reading_line_accuracy) THEN
-			-- Get hourly points to graph. See daily for more comments.
-			-- Now uses materialized view for hourly meter readings.
-			RETURN QUERY
-				SELECT
-					hourly.meter_id AS meter_id,
-					hourly.reading_rate AS reading_rate,
-					hourly.min_rate AS min_rate,
-					hourly.max_rate AS max_rate,
-					lower(hourly.time_interval) AS start_timestamp,
-					upper(hourly.time_interval) AS end_timestamp
-				FROM
-					meter_hourly_readings_unit AS hourly
-				WHERE
-					requested_range @> hourly.time_interval
-					AND hourly.meter_id = current_meter_id
-					AND hourly.graphic_unit_id = g_unit_id
-				ORDER BY 
-					start_timestamp ASC;	
-		ELSE
-			-- Get daily points to graph. This should be an okay number but can be too many
-			-- if there are a lot of days of readings.
-			-- TODO Someday consider averaging days if too many.
-			RETURN QUERY
-				SELECT
-					daily.meter_id AS meter_id,
-					daily.reading_rate AS reading_rate,
-					daily.min_rate AS min_rate,
-					daily.max_rate AS max_rate,
-					lower(daily.time_interval) AS start_timestamp,
-					upper(daily.time_interval) AS end_timestamp
-				FROM
-					meter_daily_readings_unit AS daily
-				WHERE
-					requested_range @> daily.time_interval
-					AND daily.meter_id = current_meter_id
-					AND daily.graphic_unit_id = g_unit_id
-				ORDER BY 
-					start_timestamp ASC;
-		END IF;
-		current_meter_index := current_meter_index + 1;
-	END LOOP;
-END;
-$$ LANGUAGE 'plpgsql';
-
--- This version of meter_line_readings_unit is how the previous group implemented time variance... used for testing.
-CREATE OR REPLACE FUNCTION meter_line_readings_unit_v3 (
-	meter_ids INTEGER[],
-	graphic_unit_id INTEGER,
-	start_stamp TIMESTAMP,
-	end_stamp TIMESTAMP,
-	point_accuracy reading_line_accuracy,
-	max_raw_points INTEGER,
-	max_hour_points INTEGER
-)
-	RETURNS TABLE(meter_id INTEGER, reading_rate FLOAT, min_rate FLOAT, max_rate FLOAT, start_timestamp TIMESTAMP, end_timestamp TIMESTAMP)
-AS $$
-DECLARE
-	requested_range TSRANGE;
-	requested_interval INTERVAL;
-	requested_interval_seconds INTEGER;
-	frequency INTERVAL;
-	frequency_seconds INTEGER;
-	-- Which index of the meter_id array you are currently working on.
-	current_meter_index INTEGER := 1;
-	-- The id of the meter index working on
-	current_meter_id INTEGER;
-	-- Holds accuracy for current meter.
-	current_point_accuracy reading_line_accuracy;
 	BEGIN
 	-- For each frequency of points, verify that you will get the minimum graphing points to use for each meter.
 	-- Start with the raw, then hourly and then daily if others will not work.
@@ -1130,7 +819,7 @@ DECLARE
 				INNER JOIN meters m ON m.id = current_meter_id)
 				INNER JOIN units u ON m.unit_id = u.id)												
 				INNER JOIN cik c on c.source_id = m.unit_id 
-					AND c.destination_id = graphic_unit_id 
+					AND c.destination_id = g_unit_id 
 					--The condition below was added for time varying conversions(allows for multiple cik rows to be applied to a single reading)
 					--ChatGPT helped with this line, I wasn't sure if the bounds should be inclusive or exclusive.
 					--The cik exclusive bounds '()' ensures no two conversions overlap.
@@ -1146,21 +835,23 @@ DECLARE
 		-- so you don't interpolate points by using the hourly data.
 		ELSIF (current_point_accuracy = 'hourly'::reading_line_accuracy) THEN
 			-- Get hourly points to graph. See daily for more comments.
+			-- Now uses materialized view for hourly meter readings.
 			RETURN QUERY
-				SELECT hourly.meter_id AS meter_id,
-					-- Convert the reading based on the conversion found below.
-					-- Hourly readings are already averaged correctly into a rate.
-					hourly.reading_rate * c.slope + c.intercept as reading_rate,
-					hourly.min_rate * c.slope + c.intercept AS min_rate,
-					hourly.max_rate * c.slope + c.intercept AS max_rate,
+				SELECT
+					hourly.meter_id AS meter_id,
+					hourly.reading_rate AS reading_rate,
+					hourly.min_rate AS min_rate,
+					hourly.max_rate AS max_rate,
 					lower(hourly.time_interval) AS start_timestamp,
 					upper(hourly.time_interval) AS end_timestamp
-				FROM ((hourly_readings_unit hourly
-				INNER JOIN meters m ON m.id = current_meter_id)
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id AND tsrange(c.start_time, c.end_time, '()') && hourly.time_interval)
-				WHERE requested_range @> time_interval AND hourly.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY start_timestamp ASC;
+				FROM
+					meter_hourly_readings_unit AS hourly
+				WHERE
+					requested_range @> hourly.time_interval
+					AND hourly.meter_id = current_meter_id
+					AND hourly.graphic_unit_id = g_unit_id
+				ORDER BY 
+					start_timestamp ASC;	
 		ELSE
 			-- Get daily points to graph. This should be an okay number but can be too many
 			-- if there are a lot of days of readings.
@@ -1168,28 +859,25 @@ DECLARE
 			RETURN QUERY
 				SELECT
 					daily.meter_id AS meter_id,
-					-- Convert the reading based on the conversion found below.
-					-- Daily readings are already averaged correctly into a rate.
-					daily.reading_rate * c.slope + c.intercept as reading_rate,
-					daily.min_rate * c.slope + c.intercept AS min_rate,
-					daily.max_rate * c.slope + c.intercept AS max_rate,
+					daily.reading_rate AS reading_rate,
+					daily.min_rate AS min_rate,
+					daily.max_rate AS max_rate,
 					lower(daily.time_interval) AS start_timestamp,
 					upper(daily.time_interval) AS end_timestamp
-				FROM ((daily_readings_unit daily
-				-- Get all the meter_ids in the passed array of meters.
-				-- This sequence of joins takes the meter id to its unit and a unit.
-				INNER JOIN meters m ON m.id = current_meter_id)
-				-- This is getting the conversion for the meter and unit to graph.
-				-- The slope and intercept are used above the transform the reading to the desired unit.
-				INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id AND tsrange(c.start_time, c.end_time, '()') && daily.time_interval)
-				WHERE requested_range @> time_interval AND daily.meter_id = current_meter_id
-				-- This ensures the data is sorted
-				ORDER BY start_timestamp ASC;
+				FROM
+					meter_daily_readings_unit AS daily
+				WHERE
+					requested_range @> daily.time_interval
+					AND daily.meter_id = current_meter_id
+					AND daily.graphic_unit_id = g_unit_id
+				ORDER BY 
+					start_timestamp ASC;
 		END IF;
 		current_meter_index := current_meter_index + 1;
 	END LOOP;
 END;
 $$ LANGUAGE 'plpgsql';
+
 
 /*
 The following function determines the correct duration view to query from, and returns averaged readings from it.
@@ -1319,81 +1007,8 @@ bar_width_days: The number of days to use for the bar width.
 start_timestamp: The start timestamp of the data to return.
 end_timestamp: The end timestamp of the data to return.
  */
-CREATE OR REPLACE FUNCTION meter_bar_readings_unit (
-	meter_ids INTEGER[],
-	graphic_unit_id INTEGER,
-	bar_width_days INTEGER,
-	start_stamp TIMESTAMP,
-	end_stamp TIMESTAMP
-)
-	RETURNS TABLE(meter_id INTEGER, reading FLOAT, start_timestamp TIMESTAMP, end_timestamp TIMESTAMP)
-AS $$
-DECLARE
-	bar_width INTERVAL;
-	real_tsrange TSRANGE;
-	real_start_stamp TIMESTAMP;
-	real_end_stamp TIMESTAMP;
-	num_bars INTEGER;
-BEGIN
-	-- This is how wide (time interval) for each bar.
-	bar_width := INTERVAL '1 day' * bar_width_days;
-	/*
-	This rounds to the day for the start and end times requested. It then shrinks in case the actual readings span
-	less time than the request. This can commonly happen when you get +/-infinity for all readings available.
-	It uses the day reading view because that is faster than using all the readings.
-	This has an issue associated with it:
-
-	1) If the readings at the start/end have a partial day then it shows up as a day. The original code did:
-	real_tsrange := shrink_tsrange_to_real_readings(tsrange(date_trunc_up('day', start_stamp), date_trunc('day', end_stamp)));
-	and did not have this issue since it used the readings and then truncated up/down.
-	A more general solution would be to change the daily (and hourly) view so it does not include partial ones at start/end.
-	This would fix this case and also impact other uses in what seems a positive way.
-	Note this does not address that missing days in a bar width get no value so the bar will likely read low.
-	*/
-	real_tsrange := shrink_tsrange_to_meters_by_day(tsrange(start_stamp, end_stamp), meter_ids);
-	-- Get the actual start/end time rounded to the nearest day from the range.
-	real_start_stamp := lower(real_tsrange);
-	real_end_stamp := upper(real_tsrange);
-	-- This gives the number of whole bars that will fit within the real start/end times. For example, if the number of days
-	-- between start and end is 14 days and the bar width is 3 days then you get 4.
-	num_bars := floor(extract(EPOCH FROM real_end_stamp - real_start_stamp) / extract(EPOCH FROM bar_width));
-	-- This makes the full bars go from the end time to as far back in time as possible.
-	-- This means that if some time was dropped to get full bars it is at the start of the interval.
-	-- It was felt that the most recent readings are the most important so drop older ones.
-	-- It also helps with maps since they use the latest bar for their value.
-	real_start_stamp := real_end_stamp - (num_bars *  bar_width);
-	-- Since the inner join on the generate_series adds the bar_width, we need to back up the
-	-- end timestamp by that amount so it stops at the desired end timestamp.
-	real_end_stamp := real_end_stamp - bar_width;
-
-	RETURN QUERY
-		SELECT dr.meter_id AS meter_id,
-		--  dr.reading_rate is the weighted average reading rate per hour over the day.
-		-- Convert to a quantity by multiplying by the time in hours which is 24 since daily values.
-		-- Then convert the reading based on the conversion found below.
-		sum(dr.reading_rate * 24) * c.slope + c.intercept AS reading,
-		bars.interval_start AS start_timestamp,
-		bars.interval_start + bar_width AS end_timestamp
-		FROM (((((daily_readings_unit dr
-		INNER JOIN generate_series(real_start_stamp, real_end_stamp, bar_width) bars(interval_start)
-				ON tsrange(bars.interval_start, bars.interval_start + bar_width, '[]') @> dr.time_interval)
-		-- Get all the meter_ids in the passed array of meters.
-		INNER JOIN unnest(meter_ids) meters(id) ON dr.meter_id = meters.id)
-		-- This sequence of joins takes the meter id to its unit and in the final join
-		-- it then get the desired conversion.
-		INNER JOIN meters m ON m.id = meters.id)
-		-- Don't return bar data if raw since cannot sum.
-		INNER JOIN units u ON m.unit_id = u.id AND u.unit_represent != 'raw'::unit_represent_type)
-		-- This is getting the conversion for the meter (source_id) and unit to graph (destination_id).
-		-- The slope and intercept are used above the transform the reading to the desired unit.
-		INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
-		GROUP BY dr.meter_id, bars.interval_start, c.slope, c.intercept;
-END;
-$$ LANGUAGE 'plpgsql';
-
-
 -- New version of meter_bar_readings_unit that uses the new meter_daily_readings_unit view.
-CREATE OR REPLACE FUNCTION meter_bar_readings_unit_v2 (
+CREATE OR REPLACE FUNCTION meter_bar_readings_unit (
 	meter_ids INTEGER[],
 	g_unit_id INTEGER, -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
 	bar_width_days INTEGER,

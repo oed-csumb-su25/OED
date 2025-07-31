@@ -42,71 +42,8 @@ curr_end: When the current/this time period ends for the compare.
 shift: How far back in time to shift the curr_start and curr_end date/time to get the previous
 	times to compare.
  */
-CREATE OR REPLACE FUNCTION meter_compare_readings_unit (
-	meter_ids INTEGER[],
-	graphic_unit_id INTEGER,
-	curr_start TIMESTAMP,
-	curr_end TIMESTAMP,
-	shift INTERVAL
-)
-	RETURNS TABLE(meter_id INTEGER, curr_use FLOAT, prev_use FLOAT)
-AS $$
-DECLARE
-	curr_tsrange TSRANGE;
-	prev_tsrange TSRANGE;
-BEGIN
-	curr_tsrange := tsrange(curr_start, curr_end);
-	prev_tsrange := tsrange(curr_start - shift, curr_end - shift);
-
-	RETURN QUERY
-	WITH
-	curr_period AS (
-		SELECT
-			meters.id AS meter_id,
-			-- Convert the reading based on the conversion found below.
-			-- It is okay to sum the flow units because hourly readings has a rate of per hour so
-			-- to convert to a quantity would multiply by 1 so it is the same formula.
-			SUM(hourly.reading_rate) * c.slope + c.intercept AS reading
-		FROM (((hourly_readings_unit hourly
-		INNER JOIN unnest(meter_ids) meters(id) ON hourly.meter_id = meters.id)
-		INNER JOIN meters m ON m.id = meters.id)
-		-- This is getting the conversion for the meter and unit to graph.
-		-- The slope and intercept are used above the transform the reading to the desired unit.
-		INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
-		WHERE curr_tsrange @> hourly.time_interval
-		GROUP BY meters.id, c.slope, c.intercept
-	),
-	prev_period AS (
-		SELECT
-			meters.id AS meter_id,
-			-- Convert the reading based on the conversion found below.
-			-- It is okay to sum the flow units because hourly readings has a rate of per hour so
-			-- to convert to a quantity would multiply by 1 so it is the same formula.
-			SUM(hourly.reading_rate) * c.slope + c.intercept AS reading
-		FROM (((hourly_readings_unit hourly
-		INNER JOIN unnest(meter_ids) meters(id) ON hourly.meter_id = meters.id)
-		INNER JOIN meters m ON m.id = meters.id)
-		-- This is getting the conversion for the meter and unit to graph.
-		-- The slope and intercept are used above the transform the reading to the desired unit.
-		INNER JOIN cik c on c.source_id = m.unit_id AND c.destination_id = graphic_unit_id)
-		WHERE prev_tsrange @> hourly.time_interval
-		GROUP BY meters.id, c.slope, c.intercept
-	)
-	SELECT
-		meters.id AS meter_id,
-		curr_period.reading::FLOAT AS curr_use,
-		prev_period.reading::FLOAT AS prev_use
-	FROM
-		unnest(meter_ids) meters(id)
-		-- Left joins here so we get nulls instead of missing rows if readings don't exist for some time intervals
-		LEFT JOIN prev_period ON meters.id = prev_period.meter_id
-		LEFT JOIN curr_period ON meters.id = curr_period.meter_id;
-END;
-$$ LANGUAGE 'plpgsql';
-
-
 -- New version of the meter_compare_readings function that uses the meter_hourly_readings_unit view.
-CREATE OR REPLACE FUNCTION meter_compare_readings_unit_v2 (
+CREATE OR REPLACE FUNCTION meter_compare_readings_unit (
 	meter_ids INTEGER[],
 	g_unit_id INTEGER, 	-- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
 	curr_start TIMESTAMP,
@@ -125,26 +62,26 @@ BEGIN
 	RETURN QUERY
 	WITH
 	curr_period AS (
-    SELECT
-        hourly.meter_id AS meter_id,
-        SUM(hourly.reading_rate) AS reading
-    FROM meter_hourly_readings_unit hourly
-    WHERE
-        curr_tsrange && hourly.time_interval AND
-        hourly.graphic_unit_id = g_unit_id AND
-        hourly.meter_id = ANY(meter_ids)
-    GROUP BY hourly.meter_id
+		SELECT
+			hourly.meter_id AS meter_id,
+			SUM(hourly.reading_rate) AS reading
+		FROM meter_hourly_readings_unit hourly
+		WHERE
+			curr_tsrange && hourly.time_interval AND
+			hourly.graphic_unit_id = g_unit_id AND
+			hourly.meter_id = ANY(meter_ids)
+		GROUP BY hourly.meter_id
 	),
 	prev_period AS (
-    SELECT
-        hourly.meter_id AS meter_id,
-        SUM(hourly.reading_rate) AS reading
-    FROM meter_hourly_readings_unit hourly
-    WHERE
-        prev_tsrange && hourly.time_interval AND
-        hourly.graphic_unit_id = g_unit_id AND
-        hourly.meter_id = ANY(meter_ids)
-    GROUP BY hourly.meter_id
+		SELECT
+			hourly.meter_id AS meter_id,
+			SUM(hourly.reading_rate) AS reading
+		FROM meter_hourly_readings_unit hourly
+		WHERE
+			prev_tsrange && hourly.time_interval AND
+			hourly.graphic_unit_id = g_unit_id AND
+			hourly.meter_id = ANY(meter_ids)
+		GROUP BY hourly.meter_id
 	)
 	SELECT
 		meters.id AS meter_id,
