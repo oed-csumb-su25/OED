@@ -9,6 +9,7 @@ const Day = require('../models/Day');
 const { success, failure } = require('./response');
 const validate = require('jsonschema').validate;
 const { adminAuthMiddleware } = require('./authenticator');
+const { error } = require('console');
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get('/', adminAuthMiddleware('get all days'), async (req, res) => {
 		const rows = await Day.getAll(conn);
 		res.json(rows.map(formatDayForResponse));
 	} catch (err) {
-		log.error(`Error while performing GET day details query: ${err}`);
+		log.error(`Error while performing GET all days query: ${err}`);
 	}
 });
 
@@ -44,17 +45,17 @@ router.get('/:id', adminAuthMiddleware('get day by id'), async (req, res) => {
 		const row = await Day.getById(dayId, conn);
 		res.json(formatDayForResponse(row));
 	} catch (err) {
-		log.error(`Error while performing GET day details query: ${err}`);
+		log.error(`Error while performing GET day by id query: ${err}`);
 	}
 });
 
 /**
  * POST add day and default day segment
- * @param {string} name
- * @param {string} note
- * @param {number} slope
- * @param {number} intercept
- * @param {string} segmentNote
+ * @param {string} name The name for the day.
+ * @param {string} note The notes for the day.
+ * @param {number} slope The slope for the default day segment.
+ * @param {number} intercept The intercept for the default day segment.
+ * @param {string} segmentNote The notes for the default day segment.
  */
 router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 	const validDay = {
@@ -89,11 +90,11 @@ router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 	const validatorResult = validate(req.body, validDay);
 
 	if (!validatorResult.valid) {
-		log.error(`Got request to insert day with invalid day data, errors: ${validatorResult.errors}`);
-		failure(res, 400, `Got request to insert day with invalid day data. Error(s): ${validatorResult.errors}`);
+		const errMsg = `Got request to add a day with invalid day data, error(s): ${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
-
 		try {
 			// Insert 
 			await conn.tx(async t => {
@@ -109,19 +110,20 @@ router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 					t
 				);
 			});
-			success(res, `Successfully inserted day`);
+			success(res, `Successfully added day`);
 		} catch (err) {
-			log.error(`Error while inserting new day with error(s): ${err}`);
-			failure(res, 500, `Error while inserting new day with errors(s): ${err}`);
+			const errMsg = `Error adding new day with error(s): ${err}`;
+			log.error(errMsg);
+			failure(res, 500, errMsg);
 		}
 	}
 });
 
 /**
  * POST edit day.
- * @param {integer} id
- * @param {string} name
- * @param {string} note
+ * @param {integer} id The id for the day.
+ * @param {string} name The new name for the day.
+ * @param {string} note The new notes for the day.
  */
 router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
 	const validDay = {
@@ -147,8 +149,9 @@ router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
 
 	const validatorResult = validate(req.body, validDay);
 	if (!validatorResult.valid) {
-		log.warn(`Got request to edit days with invalid day data, errors: ${validatorResult.errors}`);
-		failure(res, 400, `Got request to edit days with invalid day data, errors: ${validatorResult.errors}`);
+		const errMsg = `Got request to edit a day with invalid day data, error(s): ${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
 		try {
@@ -156,15 +159,16 @@ router.post('/edit', adminAuthMiddleware('edit day'), async (req, res) => {
 			await updatedDay.update(conn);
 			success(res, `Successfully edited day`);
 		} catch (err) {
-			log.error(`Error while editing day with error(s): ${err}`);
-			failure(res, 500, `Error while editing day with error(s): ${err}`);
+			const errMsg = `Error while editing a day with error(s): ${err}`;
+			log.error(errMsg);
+			failure(res, 500, errMsg);
 		}
 	}
 });
 
 /**
  * POST delete day.
- * @param {integer} id
+ * @param {integer} id The id for the day to be deleted.
  */
 router.post('/delete', adminAuthMiddleware('delete day'), async (req, res) => {
 	const validDay = {
@@ -182,8 +186,9 @@ router.post('/delete', adminAuthMiddleware('delete day'), async (req, res) => {
 	// Ensure day object is valid
 	const validatorResult = validate(req.body, validDay);
 	if (!validatorResult.valid) {
-		log.warn(`Got request to delete days with invalid day data, errors: ${validatorResult.errors}`);
-		failure(res, 400, `Got request to delete days with invalid day data. Error(s): ${validatorResult.errors}`);
+		const errMsg = `Got request to delete a day with invalid day data, error(s):${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
 		try {
@@ -192,8 +197,9 @@ router.post('/delete', adminAuthMiddleware('delete day'), async (req, res) => {
 			await Day.delete(req.body.id, conn);
 			success(res, 'Successfully deleted day');
 		} catch (err) {
-			log.error(`Error while deleting day with error(s): ${err}`);
-			failure(res, 500, `Error while deleting day with errors(s): ${err}`);
+			const errMsg = `Error while deleting a day with error(s): ${err}`;
+			log.error(errMsg);
+			failure(res, 500, errMsg);
 		}
 	}
 });

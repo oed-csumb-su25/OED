@@ -97,9 +97,9 @@ class DaySegment {
 		const daySegment = this;
 		try {
 			const resp =  await conn.none(sqlFile('daySegment/insert_new_day_segment.sql'), daySegment);
-		} catch(err) {
-			log.error(`Error while inserting day segment with error(s): ${err}`);
-			failure(res, 500, `Error while inserting day segment with error(s): ${err}`);
+		} catch{
+			log.error(`Error while inserting day segment`);
+			failure(res, 500, `Error while inserting day segment`);
 		}
 	}
 	
@@ -128,9 +128,9 @@ class DaySegment {
 		if (this.startHour !== originalStartHour) {
 			try {
 				await conn.none(sqlFile('daySegment/update_prev_seg_end_to_new_start.sql'), daySegment);
-			} catch(err) {
-				log.error(`Error while updating previous segment with error(s): ${err}`);
-				failure(res, 500, `Error while updating previous segment with error(s): ${err}`);
+			} catch {
+				log.error(`Error while updating previous segment`);
+				failure(res, 500, `Error while updating previous segment`);
 				return;
 			}
 		}
@@ -139,9 +139,9 @@ class DaySegment {
 		if (this.endHour !== originalEndHour) {
 			try {
 				await conn.none(sqlFile('daySegment/update_next_seg_start_to_new_end.sql'), daySegment);
-			} catch(err) {
-				log.error(`Error while updating the next segments start time with error(s) ${err}`);
-				failure(res, 500, `Error while updating the next segments start time with error(s) ${err}`);
+			} catch{
+				log.error(`Error while updating the next segments start time `);
+				failure(res, 500, `Error while updating the next segments start time`);
 				return;
 			}
 		}
@@ -149,9 +149,9 @@ class DaySegment {
 		// update the current segment
 		try {
 			await conn.none(sqlFile('daySegment/update_day_segment.sql'), daySegment);
-		} catch(err) {
-			log.error(`Error while updating day segment with error(s): ${err}`);
-			failure(res, 500, `Error while updating day segment with error(s): ${err}`);
+		} catch {
+			log.error(`Error while updating day segment`);
+			failure(res, 500, `Error while updating day segment `);
 		}
 	}
 
