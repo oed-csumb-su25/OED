@@ -309,8 +309,7 @@ router.post('/edit', adminAuthMiddleware('edit conversion segment'), async (req,
 				await updatedConversionSegment.update(
 					req.body.originalStartTime, 
 					req.body.originalEndTime, 
-					t,
-					res
+					t
 				);
 			});
 

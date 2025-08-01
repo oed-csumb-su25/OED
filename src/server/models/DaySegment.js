@@ -110,7 +110,7 @@ class DaySegment {
 	 * @param {*} conn the connection to use.
 	 * @returns {Promise.<>}
 	 */
-	async update(originalStartHour, originalEndHour, conn, res) {
+	async update(originalStartHour, originalEndHour, conn) {
 		const daySegment = {
 			...this,
 			originalStartHour,
@@ -119,40 +119,20 @@ class DaySegment {
 
 		// check that 0 and 24 aren't being updated
 		if ((this.startHour !== originalStartHour && originalStartHour === 0) || (this.endHour !== originalEndHour && originalEndHour === 24)) {
-			log.error(`Cannot update starting hour of 0 or ending hour of 24`);
-			failure(res, 500, `Cannot update staring hour of 0 or ending hour of 24`);
-			return;
+			const errMsg = `Cannot update starting hour of 0 or ending hour of 24`;
+			log.error(errMsg);
+			throw new Error(errMsg);
 		}
 
 		// Check and update previous segment's end time to updated start time
-		if (this.startHour !== originalStartHour) {
-			try {
-				await conn.none(sqlFile('daySegment/update_prev_seg_end_to_new_start.sql'), daySegment);
-			} catch {
-				log.error(`Error while updating previous segment`);
-				failure(res, 500, `Error while updating previous segment`);
-				return;
-			}
-		}
+		await conn.none(sqlFile('daySegment/update_prev_seg_end_to_new_start.sql'), daySegment);
 
 		// Check and update next segment's start time to updated end time
-		if (this.endHour !== originalEndHour) {
-			try {
-				await conn.none(sqlFile('daySegment/update_next_seg_start_to_new_end.sql'), daySegment);
-			} catch{
-				log.error(`Error while updating the next segments start time `);
-				failure(res, 500, `Error while updating the next segments start time`);
-				return;
-			}
-		}
+		await conn.none(sqlFile('daySegment/update_next_seg_start_to_new_end.sql'), daySegment);
+
 
 		// update the current segment
-		try {
-			await conn.none(sqlFile('daySegment/update_day_segment.sql'), daySegment);
-		} catch {
-			log.error(`Error while updating day segment`);
-			failure(res, 500, `Error while updating day segment `);
-		}
+		await conn.none(sqlFile('daySegment/update_day_segment.sql'), daySegment);
 	}
 
 	/**

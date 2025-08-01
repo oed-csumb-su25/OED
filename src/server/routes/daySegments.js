@@ -261,8 +261,7 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 				await updatedDaySegment.update(
 					req.body.originalStartHour,
 					req.body.originalEndHour,
-					t,
-					res
+					t
 				);
 			});
 
