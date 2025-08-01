@@ -5,6 +5,7 @@
 const database = require('./database');
 const sqlFile = database.sqlFile;
 const { log } = require('../log');
+const { failure } = require('./response');
 
 class ConversionSegment {
 	/**
