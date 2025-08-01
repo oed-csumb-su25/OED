@@ -12,5 +12,6 @@ CREATE TABLE IF NOT EXISTS day_segments (
 	slope FLOAT NOT NULL,
 	intercept FLOAT NOT NULL,
 	note TEXT,
-	CHECK (start_hour < end_hour)
+	CHECK (start_hour < end_hour),
+	UNIQUE (day_id, start_hour, end_hour)
 );
