@@ -47,23 +47,22 @@ router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res)
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'integer', 
-				minimum: 0
+				type: 'string', 
+				pattern: '^\\d+$'
 			}
 		}
 	};
-
-	req.params.id = parseInt(req.params.id);
 	
 	if (!validate(req.params, validParams).valid) {
-		return res.status(400).json({error: 'Invalid id'});
+		return res.status(400);
 	} else {
 		const conn = getConnection();
 		try {
-			const rows = await DaySegment.getById(req.params.id, conn);
-			res.json(rows);
+			const row = await DaySegment.getById(req.params.id, conn);
+			res.json(formatDaySegmentForResponse(row));
 		} catch (err) {
-			log.error(`Error while performing GET day segment by id: ${err}`);
+			log.error(`Error while performing GET day segment by id query: ${err}`);
+			res.sendStatus(500);
 		}
 	}
 });

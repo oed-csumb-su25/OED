@@ -50,21 +50,19 @@ router.get('/:id', adminAuthMiddleware('get week by id'), async(req, res) => {
 		required: ['id'],
 		properties: {
 			id: {
-				type: 'integer', 
-				minimum: 0
+				type: 'string', 
+				pattern: '^\\d+$'
 			}
 		}
 	};
-
-	req.params.id = parseInt(req.params.id);
 	
 	if (!validate(req.params, validParams).valid) {
-		return res.status(400).json({error: 'Invalid id'});
+		res.status(400);
 	} else {
 		const conn = getConnection();
 		try {
-			const rows = await Week.getById(req.params.id, conn);
-			res.json(rows);
+			const row = await Week.getById(req.params.id, conn);
+			res.json(formatWeekForResponse(row));
 		} catch (err) {
 			log.error(`Error while performing GET week by id: ${err}`);
 		}

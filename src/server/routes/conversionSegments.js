@@ -74,7 +74,7 @@ router.post('/sourceDestination', adminAuthMiddleware('get conversion segment(s)
 				req.body.destinationId, 
 				conn
 			);
-			res.json(rows);
+			res.json(rows.map(formatConversionSegmentForResponse));
 		} catch (err) {
 			const errMsg = `Error while retrieving conversion segment by source id and destination id with error(s): ${err}`
 			log.error(errMsg);
@@ -132,7 +132,7 @@ router.post('/sourceDestinationStartEnd', adminAuthMiddleware('get conversion se
 			if (!row || row.length === 0) {
 				return res.sendStatus(404);
 			}
-			res.json(row);
+			res.json(formatConversionSegmentForResponse(row));
 		} catch (err) {
 			const errMsg = `Error while retrieving conversion segment by source id, destination id, start time, and end time with error(s): ${err}`
 			log.error(errMsg);

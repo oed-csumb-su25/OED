@@ -37,15 +37,30 @@ router.get('/', adminAuthMiddleware('get all days'), async (req, res) => {
 /**
  * GET day by id.
  */
-router.get('/:id', adminAuthMiddleware('get day by id'), async (req, res) => {
-	const dayId = parseInt(req.params.id);
+router.get('/:dayId', adminAuthMiddleware('get day by id'), async (req, res) => {
+	const validParams = {
+		type: 'object',
+		maxProperties: 1,
+		required: ['dayId'],
+		properties: {
+			dayId: {
+				type: 'string',
+				pattern: '^\\d+$'
+			}
+		}
+	};
 
-	const conn = getConnection();
-	try {
-		const row = await Day.getById(dayId, conn);
-		res.json(formatDayForResponse(row));
-	} catch (err) {
-		log.error(`Error while performing GET day by id query: ${err}`);
+	if (!validate(req.params, validParams).valid) {
+		return res.status(400);
+	} else {
+		const conn = getConnection();
+		try {
+			const row = await Day.getById(req.params.dayId, conn);
+			res.json(formatDayForResponse(row));
+		} catch (err) {
+			log.error(`Error while performing GET day by id query: ${err}`);
+			res.sendStatus(500);
+		}
 	}
 });
 
