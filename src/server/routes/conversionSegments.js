@@ -61,7 +61,6 @@ router.post('/sourceDestination', adminAuthMiddleware('get conversion segment(s)
 	};
 
 	const validatorResult = validate(req.body, validConversionSegment);
-
 	if (!validatorResult.valid) {
 		const errMsg = `Got request to retrieve conversion segment(s) by source id and destination id with invalid data, error(s): ${validatorResult.errors}`;
 		log.warn(errMsg);
@@ -114,7 +113,6 @@ router.post('/sourceDestinationStartEnd', adminAuthMiddleware('get conversion se
 	};
 
 	const validatorResult = validate(req.body, validConversionSegment);
-
 	if (!validatorResult.valid) {
 		const errMsg = `Got request to retrieve a conversion segment by source id, destination id, start time, and end time with invalid data, error(s): ${validatorResult.errors}`;
 		log.warn(errMsg);

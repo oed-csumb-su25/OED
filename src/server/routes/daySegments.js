@@ -52,9 +52,11 @@ router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res)
 			}
 		}
 	};
-	
-	if (!validate(req.params, validParams).valid) {
-		return res.status(400);
+	const validatorResult = validate(req.params, validParams);
+	if (!validatorResult.valid) {
+		const errMsg = `Got request to retrieve a day segment by id with invalid data, error(s): ${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
 		try {
@@ -71,7 +73,7 @@ router.get('/:id', adminAuthMiddleware('get day segment by id'), async(req, res)
  * POST get all day segments by dayId
  * @param {integer} dayId The id for the day.
  */
-router.post('/segments', adminAuthMiddleware('get day segments by day id'), async(req, res) => {
+router.post('/dayId', adminAuthMiddleware('get day segments by day id'), async(req, res) => {
 	const validDaySegment = {
 		type: 'object',
 		maxProperties: 1,
@@ -83,8 +85,11 @@ router.post('/segments', adminAuthMiddleware('get day segments by day id'), asyn
 			}
 		}
 	};
-	if (!validate(req.body, validDaySegment).valid) {
-		return res.status(400).json({error: 'Invalid dayId'});
+	const validatorResult = validate(req.body, validDaySegment);
+	if (!validatorResult.valid) {
+		const errMsg = `Got request to retrieve day segments by dayId with invalid data, error(s): ${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
 		try {
@@ -237,7 +242,7 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 
 	const validatorResult = validate(req.body, validDaySegment);
 	if (!validatorResult.valid) {
-		const errMsg = `Got request to update a day segment with invalid data, error(s): ${validatorResult.errors}`;
+		const errMsg = `Got request to edit a day segment with invalid data, error(s): ${validatorResult.errors}`;
 		log.warn(errMsg);
 		failure(res, 400, errMsg);
 	} else {
@@ -261,9 +266,9 @@ router.post('/edit', adminAuthMiddleware('edit day segment'), async (req, res) =
 				);
 			});
 
-			success(res, `Successfully updated day segment`);
+			success(res, `Successfully edited day segment`);
 		} catch (err) {
-			const errMsg = `Error while updating day segment with error(s): ${err}`;
+			const errMsg = `Error while editing day segment with error(s): ${err}`;
 			log.error(errMsg);
 			failure(res, 500, errMsg);
 		}

@@ -9,7 +9,6 @@ const Day = require('../models/Day');
 const { success, failure } = require('./response');
 const validate = require('jsonschema').validate;
 const { adminAuthMiddleware } = require('./authenticator');
-const { error } = require('console');
 
 const router = express.Router();
 
@@ -50,8 +49,11 @@ router.get('/:dayId', adminAuthMiddleware('get day by id'), async (req, res) => 
 		}
 	};
 
-	if (!validate(req.params, validParams).valid) {
-		return res.status(400);
+	const validatorResult = validate(req.params, validParams);
+	if (!validatorResult.valid) {
+		const errMsg = `Got request to retrieve a day by id with invalid data, error(s): ${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
 		try {
@@ -103,7 +105,6 @@ router.post('/add', adminAuthMiddleware('add day'), async (req, res) => {
 	};
 
 	const validatorResult = validate(req.body, validDay);
-
 	if (!validatorResult.valid) {
 		const errMsg = `Got request to add a day with invalid day data, error(s): ${validatorResult.errors}`;
 		log.warn(errMsg);

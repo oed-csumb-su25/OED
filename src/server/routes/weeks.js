@@ -55,9 +55,12 @@ router.get('/:id', adminAuthMiddleware('get week by id'), async(req, res) => {
 			}
 		}
 	};
-	
-	if (!validate(req.params, validParams).valid) {
-		res.status(400);
+
+	const validatorResult = validate(req.params, validParams);
+	if (!validatorResult.valid) {
+		const errMsg = `Got request to retrieve a week by id with invalid data, error(s): ${validatorResult.errors}`;
+		log.warn(errMsg);
+		failure(res, 400, errMsg);
 	} else {
 		const conn = getConnection();
 		try {
@@ -229,9 +232,9 @@ router.post('/edit', adminAuthMiddleware('edit week'), async (req, res) => {
 				req.body.saturday
 			);
 			await updatedWeek.update(conn);
-			success(res, `Successfully updated week`);
+			success(res, `Successfully edited week`);
 		} catch (err) {
-			const errMsg = `Error while updating a week with error(s): ${err}`;
+			const errMsg = `Error while editing a week with error(s): ${err}`;
 			log.error(errMsg);
 			failure(res, 500, errMsg);
 		}
