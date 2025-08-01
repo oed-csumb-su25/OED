@@ -6,6 +6,8 @@ const database = require('./database');
 const sqlFile = database.sqlFile;
 const { log } = require('../log');
 const { failure } = require('./response');
+const moment = require('moment');
+const { start } = require('repl');
 
 class ConversionSegment {
 	/**
@@ -24,8 +26,8 @@ class ConversionSegment {
 		this.weekPatternsId = weekPatternsId;
 		this.slope = slope;
 		this.intercept = intercept;
-		this.startTime = startTime;
-		this.endTime = endTime;
+		this.startTime = moment(startTime);
+		this.endTime = moment(endTime);
 		this.note = note;
 	}
 
@@ -128,20 +130,23 @@ class ConversionSegment {
 			originalEndTime
 		};
 
+		const startChanged = !moment(this.startTime).isSame(originalStartTime);
+		const endChanged = !moment(this.endTime).isSame(originalEndTime);
+
 		// check that -infinity and infinity aren't being updated
-		if ((this.startTime !== originalStartTime && originalStartTime === '-infinity') || (this.endTime !== originalEndTime && originalEndTime === 'infinity')) {
+		if ((startChanged && (originalStartTime === '-infinity')) || endChanged && (originalEndTime === 'infinity')) {
 			const errMsg = `Cannot update starting time of -infinity or ending time of infinity`;
 			log.error(errMsg);
 			throw new Error(errMsg);
 		}
 
-		// Check and update previous segment's end time to updated start time
-		if (this.startTime !== originalStartTime) {
+		// update the previous segment's end time to the updated start time
+		if (startChanged) {
 				await conn.none(sqlFile('conversionSegment/update_prev_seg_end_to_new_start.sql'), conversionSegment);
 		}
 
-		// Check and update next segment's start time to updated end time
-		if (this.endTime !== originalEndTime) {
+		// update the next segment's start time to the updated end time
+		if (endChanged) {
 			await conn.none(sqlFile('conversionSegment/update_next_seg_start_to_new_end.sql'), conversionSegment);
 		}
 
