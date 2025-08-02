@@ -427,7 +427,7 @@ SELECT
 		* c.slope + c.intercept) 
 	) AS reading_rate,
 	(
-		bh.min_rate * SUM(																			
+		bh.min_rate * MIN(																			
 		(EXTRACT(EPOCH FROM (
 			upper(tsrange(c.start_time, c.end_time, '()') * tsrange(lower(bh.time_interval), upper(bh.time_interval), '[]'))
 			- 
@@ -436,7 +436,7 @@ SELECT
 		* c.slope + c.intercept)
 	) AS min_rate,
   	(
-		bh.max_rate * SUM(																			
+		bh.max_rate * MAX(																			
 		(EXTRACT(EPOCH FROM (
 			upper(tsrange(c.start_time, c.end_time, '()') * tsrange(lower(bh.time_interval), upper(bh.time_interval), '[]'))
 			- 
@@ -463,7 +463,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS
 meter_hourly_readings_unit_old
 	AS SELECT
 		m.id AS meter_id,
-		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		sum(hr.reading_rate * c.slope + c.intercept) AS reading_rate,
 		sum(hr.min_rate * c.slope + c.intercept) AS min_rate,
 		sum(hr.max_rate * c.slope + c.intercept) AS max_rate,
 		hr.time_interval,
@@ -503,6 +503,48 @@ meter_daily_readings_unit
 CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/bar/compare functions.
 -- This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
 -- CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); 
+
+
+-- Converts and stores all raw data with all applicable conversions.
+CREATE MATERIALIZED VIEW IF NOT EXISTS 
+meter_raw_readings_unit 
+AS SELECT 
+	r.meter_id,
+	-- Time-weighted conversion applied directly to the reading
+	CASE 
+		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
+			-- Normalize quantity to rate, apply weighted conversion
+			(
+				(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) *
+				SUM(
+					(EXTRACT(EPOCH FROM (
+						upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
+						lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+					)) / 3600) * c.slope + c.intercept
+				)
+			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
+
+		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
+			-- Normalize to per hour, apply weighted conversion
+			SUM(
+				(r.reading * 3600 / u.sec_in_rate) *
+				(EXTRACT(EPOCH FROM (
+					upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
+					lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+				)) / 3600) * c.slope + c.intercept
+			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
+	END AS reading_rate,
+	tsrange(r.start_timestamp, r.end_timestamp, '[]') AS time_interval,
+	c.destination_id AS graphic_unit_id
+
+FROM readings r
+INNER JOIN meters m ON r.meter_id = m.id
+INNER JOIN units u ON m.unit_id = u.id
+INNER JOIN cik c 
+	ON c.source_id = m.unit_id
+	AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]')
+GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, r.reading, u.unit_represent
+ORDER BY r.meter_id, time_interval, c.destination_id;
 
 
 /*
@@ -653,31 +695,6 @@ CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit
 -- end Create meter_hourly_readings_unit_vB
 
 
--- Materialized view for raw conversions (not thoroughly tested/does not incorporate time varying conversions)
--- CREATE MATERIALIZED VIEW IF NOT EXISTS meter_raw_readings_unit 
--- 	AS SELECT 
--- 	r.meter_id as meter_id,
--- 	CASE 
--- 		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
--- 			-- If it is quantity readings then need to convert to rate per hour by dividing by the time length where
--- 			-- the 3600 is needed since EPOCH is in seconds.
--- 			SUM((r.reading / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) * c.slope + c.intercept) 
--- 		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
--- 			-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
--- 			-- to per hour.
--- 			SUM((r.reading * 3600 / u.sec_in_rate) * c.slope + c.intercept)
--- 	END AS reading_rate,
--- 	r.start_timestamp,
---     r.end_timestamp,
--- 	--tsrange(r.start_timestamp, r.end_timestamp, '[]') AS time_interval,
--- 	c.destination_id AS graphic_unit_id
-
--- 	FROM readings r
--- 	INNER JOIN meters m ON m.id = r.meter_id
--- 	INNER JOIN units u ON m.unit_id = u.id
--- 	INNER JOIN cik c on c.source_id = m.unit_id AND r.start_timestamp >= c.start_time AND r.end_timestamp <= c.end_time
--- 	GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, u.unit_represent;
-		
 
 
 
@@ -796,8 +813,8 @@ DECLARE
 				WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
 					-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
 					-- to per hour.
-					(r.reading * 3600 / u.sec_in_rate) 
-					* SUM(																				--Wrapped in SUM to handle multiple matching cik conversions
+					SUM(
+						(r.reading * 3600 / u.sec_in_rate) * 																			--Wrapped in SUM to handle multiple matching cik conversions
 						-- Weight by conversion duration(intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
 						 (EXTRACT(EPOCH FROM (
 							upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
@@ -826,7 +843,8 @@ DECLARE
 					AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 				WHERE lower(requested_range) <= r.start_timestamp AND r.end_timestamp <= upper(requested_range) AND r.meter_id = current_meter_id
 				-- Added GROUP BY to allow SUM to aggregate correctly across multiple rows.
-				GROUP BY r.meter_id, r.start_timestamp, r.end_timestamp, u.sec_in_rate, u.unit_represent
+				-- TODO : postgreSQL doesn't understand unit_represent cannot change for a given meter, so it has to be in group by. Might be worth finding fix.
+				GROUP BY r.meter_id, r.start_timestamp, r.end_timestamp, u.unit_represent
 				-- This ensures the data is sorted
 				ORDER BY r.start_timestamp ASC;
 		-- The first part is making sure that the number of hour points is 1440 or less.
@@ -853,9 +871,7 @@ DECLARE
 				ORDER BY 
 					start_timestamp ASC;	
 		ELSE
-			-- Get daily points to graph. This should be an okay number but can be too many
-			-- if there are a lot of days of readings.
-			-- TODO Someday consider averaging days if too many.
+			-- Now uses materialized view for daily meter readings.
 			RETURN QUERY
 				SELECT
 					daily.meter_id AS meter_id,
