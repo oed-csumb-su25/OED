@@ -336,7 +336,7 @@ group_hourly_readings_unit
 
 CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
 
--- Current working version. Is not dependent on old hourly view and handles multiple conversions per reading.
+-- Is not dependent on old hourly view and handles multiple conversions per reading. Does not handle multiple conversions per reading.
 CREATE MATERIALIZED VIEW IF NOT EXISTS meter_hourly_readings_unit
 AS
 WITH base_hourly AS (
@@ -456,6 +456,74 @@ ORDER BY bh.meter_id, c.destination_id, bh.time_interval;
 
 CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_unit (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/3d/compare functions.
 
+-- Current working version, uses the converted raw data from meter_raw_readings_unit to calculate converted hourly readings.
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+meter_hourly_readings_unit_v3
+	AS SELECT
+		r.meter_id AS meter_id,
+		(sum(
+			(r.reading_rate)
+			*
+			extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
+				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
+				-
+				greatest(r.start_timestamp, gen.interval_start)
+			)
+		) / sum(
+				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
+					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
+					-
+					greatest(r.start_timestamp, gen.interval_start)
+				)
+		)) AS reading_rate,
+		(max(( 
+			(r.reading_rate) 
+			*
+			extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
+				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
+				-
+				greatest(r.start_timestamp, gen.interval_start)
+			)
+			) / (
+			extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
+				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
+				-
+				greatest(r.start_timestamp, gen.interval_start)
+			)
+		))) as max_rate,
+		(min((
+			(r.reading_rate)
+			*
+			extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
+				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
+				-
+				greatest(r.start_timestamp, gen.interval_start)
+			)
+			) / (
+			extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
+				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
+				-
+				greatest(r.start_timestamp, gen.interval_start)
+				)
+			))) as min_rate,
+	tsrange(gen.interval_start, gen.interval_start + '1 hour'::INTERVAL, '()') AS time_interval,
+	r.graphic_unit_id AS graphic_unit_id
+
+	FROM ((meter_raw_readings_unit r
+	-- This sequence of joins takes the meter id to its unit and a unit.
+	INNER JOIN meters m ON r.meter_id = m.id)
+	INNER JOIN units u ON m.unit_id = u.id)
+		CROSS JOIN LATERAL generate_series(
+			date_trunc('hour', r.start_timestamp),
+			-- Subtract 1 interval width because generate_series is end-inclusive
+			date_trunc_up('hour', r.end_timestamp) - '1 hour'::INTERVAL,
+			'1 hour'::INTERVAL
+		) gen(interval_start)
+	GROUP BY r.meter_id, gen.interval_start, r.graphic_unit_id
+	-- The order by ensures that the materialized view will be clustered in this way.
+	ORDER BY gen.interval_start, r.meter_id;
+	
+CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_unit_v3 (meter_id, graphic_unit_id, lower(time_interval)); -- Used by the line/3d/compare functions.
 
 -- Deprecated view, is dependent on old hourly view and does not handle multiple conversions per reading.
 -- Kept incase OED decides to not remove hourly_readings_unit(would still need to be modified to handle multiple conversions per reading that can be of varying lengths or overlap readings). 
@@ -534,7 +602,8 @@ AS SELECT
 				)) / 3600) * c.slope + c.intercept
 			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
 	END AS reading_rate,
-	tsrange(r.start_timestamp, r.end_timestamp, '[]') AS time_interval,
+	r.start_timestamp,
+	r.end_timestamp,
 	c.destination_id AS graphic_unit_id
 
 FROM readings r
@@ -544,7 +613,7 @@ INNER JOIN cik c
 	ON c.source_id = m.unit_id
 	AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]')
 GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, r.reading, u.unit_represent
-ORDER BY r.meter_id, time_interval, c.destination_id;
+ORDER BY r.meter_id, r.start_timestamp, r.end_timestamp, c.destination_id;
 
 
 /*
@@ -863,7 +932,7 @@ DECLARE
 					lower(hourly.time_interval) AS start_timestamp,
 					upper(hourly.time_interval) AS end_timestamp
 				FROM
-					meter_hourly_readings_unit AS hourly
+					meter_hourly_readings_unit_v3 AS hourly
 				WHERE
 					requested_range @> hourly.time_interval
 					AND hourly.meter_id = current_meter_id
