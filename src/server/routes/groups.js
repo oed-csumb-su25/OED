@@ -15,6 +15,7 @@ const { log } = require('../log');
 const Point = require('../models/Point');
 const { failure, success } = require('./response');
 const { refreshGroupsDeepMetersView } = require('../services/refreshGroupsDeepMetersView');
+const { property } = require('lodash');
 
 const router = express.Router();
 router.use(optionalAuthenticator);
@@ -297,6 +298,7 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 	const validGroup = {
 		type: 'object',
 		maxProperties: 10,
+		
 		required: ['id', 'name', 'childGroups', 'childMeters'],
 		properties: {
 			id: { type: 'integer' },
@@ -350,8 +352,7 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 		}
 	};
 
-	const editedGroup = req.body.editedGroup;
-	console.log("100", req.body);
+	const editedGroup = req.body;
 
 	const validatorResult = validate(editedGroup, validGroup);
 	if (!validatorResult.valid) {
@@ -359,15 +360,10 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 		failure(res, 400, "Got request to edit group with invalid data. Error(s): " + validatorResult.errors.toString());
 	} else {
 		try {
-			console.log("150");
 			const conn = getConnection();
-			console.log("151");
 			const currentGroup = await Group.getByID(editedGroup.id, conn);
-			console.log("152");
 			const currentChildGroups = await Group.getImmediateGroupsByGroupID(currentGroup.id, conn);
-			console.log("153");
 			const currentChildMeters = await Group.getImmediateMetersByGroupID(currentGroup.id, conn);
-			console.log("160");
 			await conn.tx(async t => {
 				const newGPS = (editedGroup.gps) ? new Point(editedGroup.gps.longitude, editedGroup.gps.latitude) : null;
 				const newGroup = new Group(
@@ -380,7 +376,6 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 					editedGroup.defaultGraphicUnit,
 					editedGroup.areaUnit
 				);
-				console.log("170");
 				await newGroup.update(t);
 
 				const adoptedGroups = difference(editedGroup.childGroups, currentChildGroups);
@@ -395,11 +390,9 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 
 				const disownedMeters = difference(currentChildMeters, editedGroup.childMeters);
 				const disownMetersQueries = disownedMeters.map(mid => currentGroup.disownMeter(mid, t));
-				console.log("180");
 				return t.batch(flatten([adoptGroupsQueries, disownGroupsQueries, adoptMetersQueries, disownMetersQueries]));
 			});
 
-			console.log("190");
 			res.sendStatus(200);
 		} catch (err) {
 			console.log("200", err);

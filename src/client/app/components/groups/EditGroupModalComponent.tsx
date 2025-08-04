@@ -337,19 +337,19 @@ export default function EditGroupModalComponent(props: EditGroupModalComponentPr
 						note: thisGroupState.note, area: thisGroupState.area, defaultGraphicUnit: thisGroupState.defaultGraphicUnit, areaUnit: thisGroupState.areaUnit
 					};
 
-					const shouldRefreshGroupsDeepMeters = childMeterChanges ||childGroupChanges;
+					const shouldRefreshGroupsDeepMeters = childMeterChanges || childGroupChanges;
 
 					// This saves group to the DB and then refreshes the window if the last group being updated and
 					// changes were made to the children. This avoid a reload on name change, etc.
-					submitGroupEdits({ editedGroup: submitState, shouldRefreshGroupsDeepMetersView: shouldRefreshGroupsDeepMeters})
-					.unwrap()
-									.then(() => {
-										showSuccessNotification(translate('group.successfully.edited.group'));
-									})
-									.catch(() => {
-										console.log(`Submitted group: ${submitState.name}.`);
-										showErrorNotification(translate('group.failed.to.edit.group'));
-									});
+					submitGroupEdits({ editedGroup: submitState, shouldRefreshGroupsDeepMetersView: shouldRefreshGroupsDeepMeters })
+						.unwrap()
+						.then(() => {
+							showSuccessNotification(translate('group.successfully.edited.group'));
+						})
+						.catch(() => {
+							console.log(`Submitted group: ${submitState.name}.`);
+							showErrorNotification(translate('group.failed.to.edit.group'));
+						});
 				});
 			} else {
 				showErrorNotification(translate('group.input.error'));

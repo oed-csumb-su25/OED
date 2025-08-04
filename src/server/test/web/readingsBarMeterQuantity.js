@@ -40,6 +40,7 @@ mocha.describe('readings API', () => {
                             barWidthDays: 1,
                             graphicUnitId: unitId
                         });
+
                     // Check that the API reading is equal to what it is expected to equal
                     expectReadingToEqualExpected(res, expected);
                 });

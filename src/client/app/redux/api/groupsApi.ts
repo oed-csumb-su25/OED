@@ -74,30 +74,28 @@ export const groupsApi = baseApi.injectEndpoints({
 			query: group => ({
 				url: 'api/groups/edit',
 				method: 'PUT',
-				body: group
+				body: group.editedGroup
 			}),
 			onQueryStarted: async ({ shouldRefreshGroupsDeepMetersView }, { queryFulfilled, dispatch }) => {
 				await queryFulfilled;
 
 				if (shouldRefreshGroupsDeepMetersView) {
-					dispatch(groupsApi.endpoints.refreshGroups.initiate({}));
-				} else {
-					dispatch(groupsApi.util.invalidateTags(['GroupData', 'GroupChildrenData']));
+					dispatch(groupsApi.endpoints.refreshGroups.initiate(null));
 				}
 			},
 			invalidatesTags: ['GroupData', 'GroupChildrenData']
 		}),
-		refreshGroups: builder.mutation<void, {}>({
-			query: ({}) => ({
+		refreshGroups: builder.mutation<void, unknown>({
+			query: unknown => ({
 				url: 'api/groups/refresh',
 				method: 'POST',
-				body: {}
+				body: unknown
 			}),
 
 			// Only the group readings really need invalidation
 			invalidatesTags: ['GroupData', 'GroupChildrenData', 'Readings'],
-			onQueryStarted: async (_arg, { dispatch, queryFulfilled} ) => {
-				dispatch(setRefreshingReadings(true));       
+			onQueryStarted: async (_arg, { dispatch, queryFulfilled }) => {
+				dispatch(setRefreshingReadings(true));
 				try {
 					await queryFulfilled;
 				} finally {

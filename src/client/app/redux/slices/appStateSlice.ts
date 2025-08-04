@@ -24,8 +24,8 @@ export interface AppState {
 	chartLinkHideOptions: boolean;
 	selectedLanguage: LanguageTypes;
 	languageManuallySet: boolean;
-	refreshingReadings: boolean;
-};
+	refreshingReadings: boolean
+}
 
 const defaultState: AppState = {
 	initComplete: false,
@@ -33,7 +33,7 @@ const defaultState: AppState = {
 	selectedLanguage: LanguageTypes.en,
 	chartLinkHideOptions: false,
 	languageManuallySet: false,
-	refreshingReadings: false,
+	refreshingReadings: false
 };
 
 export const appStateSlice = createThunkSlice({
@@ -58,7 +58,6 @@ export const appStateSlice = createThunkSlice({
 		}),
 		setChartLinkOptionsVisibility: create.reducer<boolean>((state, action) => {
 			state.chartLinkHideOptions = action.payload;
-
 		}),
 		setRefreshingReadings: create.reducer<boolean>((state, action) => {
 			state.refreshingReadings = action.payload;
@@ -100,7 +99,6 @@ export const appStateSlice = createThunkSlice({
 						deleteToken();
 						dispatch(currentUserSlice.actions.clearCurrentUser());
 					}
-
 				}
 				// Request meter/group/details post-auth
 				dispatch(metersApi.endpoints.getMeters.initiate());
@@ -111,7 +109,6 @@ export const appStateSlice = createThunkSlice({
 					state.initComplete = true;
 				}
 			}
-
 		)
 	}),
 	extraReducers: builder => {
@@ -133,7 +130,7 @@ export const appStateSlice = createThunkSlice({
 		selectOptionsVisibility: state => state.optionsVisibility,
 		selectSelectedLanguage: state => state.selectedLanguage,
 		selectChartLinkHideOptions: state => state.chartLinkHideOptions,
-		selectRefreshingReadings: state => state.refreshingReadings,
+		selectRefreshingReadings: state => state.refreshingReadings
 	}
 });
 
@@ -144,7 +141,7 @@ export const {
 	setOptionsVisibility,
 	updateSelectedLanguage,
 	setChartLinkOptionsVisibility,
-	setRefreshingReadings,
+	setRefreshingReadings
 } = appStateSlice.actions;
 
 export const {

@@ -39,7 +39,7 @@ export default function GroupsDetailComponent() {
 		// Switch help depending if admin or not.
 		tooltipGroupView: isAdmin ? 'help.admin.groupview' : 'help.groups.groupview'
 	};
-	const isRefreshingReadings = useAppSelector(selectRefreshingReadings);	
+	const isRefreshingReadings = useAppSelector(selectRefreshingReadings);
 	return (
 		<div className='flexGrowOne'>
 			{status === QueryStatus.pending || isRefreshingReadings ? (
@@ -77,4 +77,5 @@ export default function GroupsDetailComponent() {
 				</div>
 			)}
 		</div>
-	)};
+	);
+}

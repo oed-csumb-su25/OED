@@ -187,7 +187,6 @@ mocha.describe('groups API', () => {
 						const password = 'password';
 						const hashedPassword = await bcrypt.hash(password, 10);
 						const unauthorizedUser = new User(undefined, `${role}@example.com`, hashedPassword, User.role[role]);
-						console.log("Unauthorized user: ", unauthorizedUser);
 						await unauthorizedUser.insert(conn);
 						unauthorizedUser.password = password;
 
@@ -213,14 +212,11 @@ mocha.describe('groups API', () => {
 					0, 1, 'increasing', false, 25.5, '0001-01-01 23:59:59', '2020-07-02 01:00:10');
 				await meterD.insert(conn);
 				let res = await chai.request(app).put('/api/groups/edit').set('token', token).type('json').send({
-					editedGroup: {
-						id: groupC.id,
-						name: groupC.name,
-						displayable: groupC.displayable,
-						childGroups: [],
-						childMeters: [meterC.id, meterD.id]
-					},
-					shouldRefreshGroupsDeepMetersView: true
+					id: groupC.id,
+					name: groupC.name,
+					displayable: groupC.displayable,
+					childGroups: [],
+					childMeters: [meterC.id, meterD.id]
 				});
 				expect(res).to.have.status(200);
 
@@ -237,14 +233,11 @@ mocha.describe('groups API', () => {
 				const groupD = new Group(undefined, 'D', true, gpsPoint, 'notes 2', 43.5);
 				await groupD.insert(conn);
 				let res = await chai.request(app).put('/api/groups/edit').set('token', token).type('json').send({
-					editedGroup: {
-						id: groupC.id,
-						name: groupC.name,
-						displayable: groupC.displayable,
-						childGroups: [groupD.id],
-						childMeters: [meterC.id]
-					}, 
-					shouldRefreshGroupsDeepMetersView: true
+					id: groupC.id,
+					name: groupC.name,
+					displayable: groupC.displayable,
+					childGroups: [groupD.id],
+					childMeters: [meterC.id]
 				});
 				expect(res).to.have.status(200);
 

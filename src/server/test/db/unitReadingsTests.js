@@ -478,11 +478,11 @@ mocha.describe('Line & bar Readings', () => {
 			], conn);
 			// We need to refresh the hourly readings view because it is materialized.
 			await Reading.refreshHourlyReadings(conn);
-			await refreshGroupsDeepMetersView();
 
 			// Associate both meters with a single group
 			await group1.adoptMeter(meter1.id, conn);
 			await group1.adoptMeter(meter2.id, conn);
+			await refreshGroupsDeepMetersView();
 
 			const groupReadings = await Reading.getGroupLineReadings(
 				[group1.id], graphicUnitId, startOfDay, startOfDay.clone().add(1, 'hour'), conn
@@ -506,11 +506,11 @@ mocha.describe('Line & bar Readings', () => {
 			], conn);
 			// We need to refresh the hourly readings view because it is materialized.
 			await Reading.refreshHourlyReadings(conn);
-			await refreshGroupsDeepMetersView();
 
 			// Associate both meters with a single group
 			await group1.adoptMeter(meter1.id, conn);
 			await group2.adoptMeter(meter2.id, conn);
+			await refreshGroupsDeepMetersView();
 
 			const groupReadings = await Reading.getGroupLineReadings(
 				[group1.id, group2.id], graphicUnitId, startOfDay, startOfDay.clone().add(1, 'hour'), conn
