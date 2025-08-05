@@ -48,7 +48,7 @@ class Week {
 	static mapRow(row) {
 		return new Week(
 			row.id, 
-			row.week_name, 
+			row.name, 
 			row.note, 
 			row.sunday, 
 			row.monday, 
