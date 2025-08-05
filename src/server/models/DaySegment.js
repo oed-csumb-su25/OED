@@ -143,9 +143,15 @@ class DaySegment {
 	/**
 	 * Delete day segment after updating the end time of the previous segment to the end time of the deleted segment.
 	 * @param {*} id The day segment id.
+	 * @param {*} startHour The start hour of the segment to delete.
 	 * @param {*} conn The connection to use.
 	 */
-	static async deleteEarlier(id, conn) {
+	static async deleteEarlier(id, startHour, conn) {
+		if (startHour === 0) {
+			const errMsg = `There is no earlier segment to update in order to delete this segment.`;
+			log.error(errMsg);
+			throw new Error(errMsg);
+		}
 		// update the end time of the previous segment
 		await conn.none(sqlFile('daySegment/update_prev_seg_end_to_curr_end.sql'), {
 			id: id
@@ -158,11 +164,18 @@ class DaySegment {
 	}
 
 	/**
-	 * elete conversion segment after updating the start time of the following segment to the start time of the deleted segment.
+	 * Delete day segment after updating the start time of the following segment to the start time of the deleted segment.
 	 * @param {*} id The day segment id.
+	 * @param {*} endHour The end hour of the segment to delete.
 	 * @param {*} conn The connection to use.
 	 */
-	static async deleteLater(id, conn) {
+	static async deleteLater(id, endHour, conn) {
+		if (endHour === 24) {
+			const errMsg = `There is no later segment to update in order to delete this segment.`;
+			log.error(errMsg);
+			throw new Error(errMsg);
+		}
+
 		// update the start time of the following segment
 		await conn.none(sqlFile('daySegment/update_next_seg_start_to_curr_start.sql'), {
 			id: id
