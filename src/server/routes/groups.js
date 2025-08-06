@@ -16,6 +16,7 @@ const Point = require('../models/Point');
 const { failure, success } = require('./response');
 const { refreshGroupsDeepMetersView } = require('../services/refreshGroupsDeepMetersView');
 const { property } = require('lodash');
+const { MIN_ITEMS, MAX_ITEMS } = require('../util/globalConst');
 
 const router = express.Router();
 router.use(optionalAuthenticator);
@@ -334,14 +335,18 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 				uniqueItems: true,
 				items: {
 					type: 'integer'
-				}
+				},
+				minItems: MIN_ITEMS,
+				maxItems: MAX_ITEMS
 			},
 			childMeters: {
 				type: 'array',
 				uniqueItems: true,
 				items: {
 					type: 'integer'
-				}
+				},
+				minItems: MIN_ITEMS,
+				maxItems: MAX_ITEMS
 			},
 			defaultGraphicUnit: { type: 'integer' },
 			areaUnit: {
