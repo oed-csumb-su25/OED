@@ -45,7 +45,8 @@ shift: How far back in time to shift the curr_start and curr_end date/time to ge
 -- New version of the meter_compare_readings function that uses the meter_hourly_readings_unit view.
 CREATE OR REPLACE FUNCTION meter_compare_readings_unit (
 	meter_ids INTEGER[],
-	g_unit_id INTEGER, 	-- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
+	-- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
+	g_unit_id INTEGER,
 	curr_start TIMESTAMP,
 	curr_end TIMESTAMP,
 	shift INTERVAL
@@ -58,7 +59,7 @@ DECLARE
 BEGIN
 	curr_tsrange := tsrange(curr_start, curr_end);
 	prev_tsrange := tsrange(curr_start - shift, curr_end - shift);
-
+	-- Modified to retrieve converted hourly readings from the materialized view.
 	RETURN QUERY
 	WITH
 	curr_period AS (

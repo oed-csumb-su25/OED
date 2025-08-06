@@ -36,7 +36,8 @@ CREATE OR REPLACE FUNCTION meter_3d_readings_unit (
     -- may need multiple meters.
     meter_ids_requested INTEGER[],
     -- The desired graphic unit of the returned data
-    g_unit_id INTEGER,    -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
+    -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
+    g_unit_id INTEGER,
     -- The start/end time for the data to return
     start_stamp TIMESTAMP,
     end_stamp TIMESTAMP,
@@ -106,6 +107,7 @@ BEGIN
                 -- of each block later. This is the same as the start time of the next value
                 -- in the sequence (except last one).
                 SELECT
+                    -- Modified to retrieve converted hourly readings from the materialized view.
                     mhr.meter_id as meter_id,
                     AVG(mhr.reading_rate) as reading_rate,
                     hours.hour AS start_timestamp,
