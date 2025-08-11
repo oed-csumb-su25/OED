@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-const MIN_ITEMS = 1;
+const MIN_ITEMS = 0;
 const MAX_ITEMS = 50;
 
 module.exports = {
