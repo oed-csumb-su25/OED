@@ -336,6 +336,47 @@ group_hourly_readings_unit
 
 CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
 
+-- Converts and stores all raw data with all applicable conversions.
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+meter_raw_readings_unit
+AS SELECT
+	r.meter_id,
+	-- Time-weighted conversion applied directly to the reading
+	CASE
+		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
+			-- Normalize quantity to rate, apply weighted conversion
+			(
+				(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) *
+				SUM(
+					(EXTRACT(EPOCH FROM (
+						upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
+						lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+					)) / 3600) * c.slope + c.intercept
+				)
+			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
+		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
+			-- Normalize to per hour, apply weighted conversion
+			SUM(
+				(r.reading * 3600 / u.sec_in_rate) *
+				(EXTRACT(EPOCH FROM (
+					upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
+					lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+				)) / 3600) * c.slope + c.intercept
+			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
+	END AS reading_rate,
+	r.start_timestamp,
+	r.end_timestamp,
+	c.destination_id AS graphic_unit_id
+
+FROM readings r
+INNER JOIN meters m ON r.meter_id = m.id
+INNER JOIN units u ON m.unit_id = u.id
+INNER JOIN cik c 
+	ON c.source_id = m.unit_id
+	AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]')
+GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, r.reading, u.unit_represent
+ORDER BY r.meter_id, r.start_timestamp, r.end_timestamp, c.destination_id;
+
 
 -- Is not dependent on old hourly view and handles multiple conversions per reading.
 -- This version creates the hourly data (similar to hourly_readings_unit) and then applies the conversion.
@@ -583,48 +624,6 @@ meter_daily_readings_unit
 CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit (meter_id, graphic_unit_id, lower(time_interval));
 -- This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
 -- CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); 
-
-
--- Converts and stores all raw data with all applicable conversions.
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-meter_raw_readings_unit
-AS SELECT
-	r.meter_id,
-	-- Time-weighted conversion applied directly to the reading
-	CASE
-		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			-- Normalize quantity to rate, apply weighted conversion
-			(
-				(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) *
-				SUM(
-					(EXTRACT(EPOCH FROM (
-						upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
-						lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
-					)) / 3600) * c.slope + c.intercept
-				)
-			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
-		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
-			-- Normalize to per hour, apply weighted conversion
-			SUM(
-				(r.reading * 3600 / u.sec_in_rate) *
-				(EXTRACT(EPOCH FROM (
-					upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
-					lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
-				)) / 3600) * c.slope + c.intercept
-			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
-	END AS reading_rate,
-	r.start_timestamp,
-	r.end_timestamp,
-	c.destination_id AS graphic_unit_id
-
-FROM readings r
-INNER JOIN meters m ON r.meter_id = m.id
-INNER JOIN units u ON m.unit_id = u.id
-INNER JOIN cik c 
-	ON c.source_id = m.unit_id
-	AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]')
-GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, r.reading, u.unit_represent
-ORDER BY r.meter_id, r.start_timestamp, r.end_timestamp, c.destination_id;
 
 
 /*
