@@ -15,6 +15,7 @@ const Conversion = require('../../models/Conversion');
 const { insertStandardUnits, insertStandardConversions } = require('../../util/insertData');
 const { insertSpecialUnits, insertSpecialConversions } = require('../../data/automatedTestingData');
 const { redoCik } = require('../../services/graph/redoCik');
+const { refreshGroupsDeepMetersView } = require('../../services/refreshGroupsDeepMetersView');
 // Readings should be accurate to many decimal places, but allow some wiggle room for database and javascript conversions
 const DELTA = 0.0000001;
 
@@ -458,8 +459,12 @@ mocha.describe('Line & bar Readings', () => {
 			group1 = await Group.getByName('Group1', conn);
 			group2 = await Group.getByName('Group2', conn);
 
+			// Refresh group materialized views
+			await refreshGroupsDeepMetersView();
+
 			// Make the graphic unit be MegaJoules.
 			graphicUnitId = (await Unit.getByName('MJ', conn)).id;
+
 		});
 
 
@@ -477,6 +482,7 @@ mocha.describe('Line & bar Readings', () => {
 			// Associate both meters with a single group
 			await group1.adoptMeter(meter1.id, conn);
 			await group1.adoptMeter(meter2.id, conn);
+			await refreshGroupsDeepMetersView();
 
 			const groupReadings = await Reading.getGroupLineReadings(
 				[group1.id], graphicUnitId, startOfDay, startOfDay.clone().add(1, 'hour'), conn
@@ -504,6 +510,7 @@ mocha.describe('Line & bar Readings', () => {
 			// Associate both meters with a single group
 			await group1.adoptMeter(meter1.id, conn);
 			await group2.adoptMeter(meter2.id, conn);
+			await refreshGroupsDeepMetersView();
 
 			const groupReadings = await Reading.getGroupLineReadings(
 				[group1.id, group2.id], graphicUnitId, startOfDay, startOfDay.clone().add(1, 'hour'), conn

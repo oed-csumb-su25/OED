@@ -9,12 +9,15 @@ import { GroupChildren, GroupData } from '../../types/redux/groups';
 import { showErrorNotification } from '../../utils/notifications';
 import { selectIsAdmin } from '../slices/currentUserSlice';
 import { baseApi } from './baseApi';
+import { setRefreshingReadings } from '../../redux/slices/appStateSlice';
+
 
 export const groupsAdapter = createEntityAdapter<GroupData>({
 	sortComparer: (groupA, groupB) => groupA.name?.localeCompare(groupB.name, undefined, { sensitivity: 'accent' })
 });
 export const groupsInitialState = groupsAdapter.getInitialState();
 export type GroupDataState = EntityState<GroupData, number>;
+
 
 export const groupsApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
@@ -67,13 +70,38 @@ export const groupsApi = baseApi.injectEndpoints({
 			}),
 			invalidatesTags: ['GroupData', 'GroupChildrenData']
 		}),
-		editGroup: builder.mutation<void, Omit<GroupData, 'deepMeters'>>({
+		editGroup: builder.mutation<void, { editedGroup: Omit<GroupData, 'deepMeters'>, shouldRefreshGroupsDeepMetersView: boolean }>({
 			query: group => ({
 				url: 'api/groups/edit',
 				method: 'PUT',
-				body: group
+				body: group.editedGroup
 			}),
+			onQueryStarted: async ({ shouldRefreshGroupsDeepMetersView }, { queryFulfilled, dispatch }) => {
+				await queryFulfilled;
+
+				if (shouldRefreshGroupsDeepMetersView) {
+					dispatch(groupsApi.endpoints.refreshGroups.initiate(null));
+				}
+			},
 			invalidatesTags: ['GroupData', 'GroupChildrenData']
+		}),
+		refreshGroups: builder.mutation<void, unknown>({
+			query: unknown => ({
+				url: 'api/groups/refresh',
+				method: 'POST',
+				body: unknown
+			}),
+
+			// Only the group readings really need invalidation
+			invalidatesTags: ['GroupData', 'GroupChildrenData', 'Readings'],
+			onQueryStarted: async (_arg, { dispatch, queryFulfilled }) => {
+				dispatch(setRefreshingReadings(true));
+				try {
+					await queryFulfilled;
+				} finally {
+					dispatch(setRefreshingReadings(false));
+				}
+			}
 		}),
 		deleteGroup: builder.mutation<void, number>({
 			query: groupId => ({
@@ -104,3 +132,5 @@ export const selectGroupNameWithID = (state: RootState, groupId: number) => {
 	const groupInfo = selectGroupById(state, groupId);
 	return groupInfo ? groupInfo.name : '';
 };
+
+export const stableEmptyGroups: GroupData[] = [];

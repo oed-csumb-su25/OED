@@ -9,14 +9,15 @@ const validate = require('jsonschema').validate;
 const Unit = require('../models/Unit');
 const { getConnection } = require('../db');
 const Group = require('../models/Group');
-const adminAuthenticator = require('./authenticator').adminAuthMiddleware;
-const optionalAuthenticator = require('./authenticator').optionalAuthMiddleware;
+const { adminAuthMiddleware, optionalAuthMiddleware } = require('./authenticator');
 const { log } = require('../log');
 const Point = require('../models/Point');
 const { failure, success } = require('./response');
+const { refreshGroupsDeepMetersView } = require('../services/refreshGroupsDeepMetersView');
+const { property } = require('lodash');
+const { MIN_ITEMS, MAX_ITEMS } = require('../util/globalConst');
 
 const router = express.Router();
-router.use(optionalAuthenticator);
 
 /**
  * Given a meter or group, return id, name, displayable, gps, note, area.
@@ -49,7 +50,7 @@ function formatToOnlyNameID(item) {
 /**
  * GET info of all groups
  */
-router.get('/', async (req, res) => {
+router.get('/', optionalAuthMiddleware, async (req, res) => {
 	const conn = getConnection();
 	try {
 		const rows = await Group.getAll(conn);
@@ -66,7 +67,10 @@ router.get('/', async (req, res) => {
 	}
 });
 
-router.get('/idname', async (req, res) => {
+// TODO It is unclear if all these routes can be used by non-admins.
+// This should be checked an updated as needed.
+
+router.get('/idname', optionalAuthMiddleware, async (req, res) => {
 	const conn = getConnection();
 	try {
 		const rows = await Group.getAll(conn);
@@ -83,7 +87,7 @@ router.get('/idname', async (req, res) => {
  * @param int group_id
  * @returns {[int], [int]}  child meter IDs and child group IDs
  */
-router.get('/children/:group_id', async (req, res) => {
+router.get('/children/:group_id', optionalAuthMiddleware, async (req, res) => {
 	const conn = getConnection();
 	try {
 		const [meters, groups, deepMeters] = await Promise.all([
@@ -103,7 +107,7 @@ router.get('/children/:group_id', async (req, res) => {
  * only the IDs of the children.
  * @return {[int, [int], [int]]}  array where each entry has the group id, array of child meter IDs and array of child group IDs
  */
-router.get('/allChildren/', async (req, res) => {
+router.get('/allChildren/', optionalAuthMiddleware, async (req, res) => {
 	// There are not parameters so nothing to verify.
 	const conn = getConnection();
 	try {
@@ -114,7 +118,7 @@ router.get('/allChildren/', async (req, res) => {
 	}
 });
 
-router.get('/deep/groups/:group_id', async (req, res) => {
+router.get('/deep/groups/:group_id', optionalAuthMiddleware, async (req, res) => {
 	const validParams = {
 		type: 'object',
 		maxProperties: 1,
@@ -142,7 +146,7 @@ router.get('/deep/groups/:group_id', async (req, res) => {
 	}
 });
 
-router.get('/deep/meters/:group_id', async (req, res) => {
+router.get('/deep/meters/:group_id', optionalAuthMiddleware, async (req, res) => {
 	const validParams = {
 		type: 'object',
 		maxProperties: 1,
@@ -170,7 +174,7 @@ router.get('/deep/meters/:group_id', async (req, res) => {
 	}
 });
 
-router.get('/parents/:group_id', async (req, res) => {
+router.get('/parents/:group_id', optionalAuthMiddleware, async (req, res) => {
 	const validParams = {
 		type: 'object',
 		maxProperties: 1,
@@ -198,7 +202,7 @@ router.get('/parents/:group_id', async (req, res) => {
 	}
 });
 
-router.post('/create', adminAuthenticator('create groups'), async (req, res) => {
+router.post('/create', adminAuthMiddleware('create groups'), async (req, res) => {
 	const validGroup = {
 		type: 'object',
 		maxProperties: 10,
@@ -292,10 +296,11 @@ router.post('/create', adminAuthenticator('create groups'), async (req, res) => 
 	}
 });
 
-router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
+router.put('/edit', adminAuthMiddleware('edit groups'), async (req, res) => {
 	const validGroup = {
 		type: 'object',
 		maxProperties: 10,
+		
 		required: ['id', 'name', 'childGroups', 'childMeters'],
 		properties: {
 			id: { type: 'integer' },
@@ -331,14 +336,18 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 				uniqueItems: true,
 				items: {
 					type: 'integer'
-				}
+				},
+				minItems: MIN_ITEMS,
+				maxItems: MAX_ITEMS
 			},
 			childMeters: {
 				type: 'array',
 				uniqueItems: true,
 				items: {
 					type: 'integer'
-				}
+				},
+				minItems: MIN_ITEMS,
+				maxItems: MAX_ITEMS
 			},
 			defaultGraphicUnit: { type: 'integer' },
 			areaUnit: {
@@ -349,49 +358,50 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 		}
 	};
 
-	const validatorResult = validate(req.body, validGroup);
+	const editedGroup = req.body;
+
+	const validatorResult = validate(editedGroup, validGroup);
 	if (!validatorResult.valid) {
 		log.error(`Got request to edit group with invalid data, errors: ${validatorResult.errors}`);
 		failure(res, 400, "Got request to edit group with invalid data. Error(s): " + validatorResult.errors.toString());
 	} else {
 		try {
 			const conn = getConnection();
-			const currentGroup = await Group.getByID(req.body.id, conn);
+			const currentGroup = await Group.getByID(editedGroup.id, conn);
 			const currentChildGroups = await Group.getImmediateGroupsByGroupID(currentGroup.id, conn);
 			const currentChildMeters = await Group.getImmediateMetersByGroupID(currentGroup.id, conn);
-
 			await conn.tx(async t => {
-				const newGPS = (req.body.gps) ? new Point(req.body.gps.longitude, req.body.gps.latitude) : null;
+				const newGPS = (editedGroup.gps) ? new Point(editedGroup.gps.longitude, editedGroup.gps.latitude) : null;
 				const newGroup = new Group(
-					req.body.id,
-					req.body.name,
-					req.body.displayable,
+					editedGroup.id,
+					editedGroup.name,
+					editedGroup.displayable,
 					newGPS,
-					req.body.note,
-					req.body.area,
-					req.body.defaultGraphicUnit,
-					req.body.areaUnit
+					editedGroup.note,
+					editedGroup.area,
+					editedGroup.defaultGraphicUnit,
+					editedGroup.areaUnit
 				);
-
 				await newGroup.update(t);
 
-				const adoptedGroups = difference(req.body.childGroups, currentChildGroups);
+				const adoptedGroups = difference(editedGroup.childGroups, currentChildGroups);
 				const adoptGroupsQueries = adoptedGroups.map(gid => currentGroup.adoptGroup(gid, t));
 
-				const disownedGroups = difference(currentChildGroups, req.body.childGroups);
+				const disownedGroups = difference(currentChildGroups, editedGroup.childGroups);
 				const disownGroupsQueries = disownedGroups.map(gid => currentGroup.disownGroup(gid, t));
 
 				// Compute meters differences and adopt/disown to make changes
-				const adoptedMeters = difference(req.body.childMeters, currentChildMeters);
+				const adoptedMeters = difference(editedGroup.childMeters, currentChildMeters);
 				const adoptMetersQueries = adoptedMeters.map(mid => currentGroup.adoptMeter(mid, t));
 
-				const disownedMeters = difference(currentChildMeters, req.body.childMeters);
+				const disownedMeters = difference(currentChildMeters, editedGroup.childMeters);
 				const disownMetersQueries = disownedMeters.map(mid => currentGroup.disownMeter(mid, t));
-
 				return t.batch(flatten([adoptGroupsQueries, disownGroupsQueries, adoptMetersQueries, disownMetersQueries]));
 			});
+
 			res.sendStatus(200);
 		} catch (err) {
+			console.log("200", err);
 			if (err.message && err.message === 'Cyclic group detected') {
 				res.status(400).send({ message: err.message });
 			} else {
@@ -402,7 +412,12 @@ router.put('/edit', adminAuthenticator('edit groups'), async (req, res) => {
 	}
 });
 
-router.post('/delete', adminAuthenticator('delete groups'), async (req, res) => {
+router.post('/refresh', adminAuthMiddleware('refresh group views'), async (req, res) => {
+	await refreshGroupsDeepMetersView();
+	res.sendStatus(200);
+});
+
+router.post('/delete', adminAuthMiddleware('delete groups'), async (req, res) => {
 	const validParams = {
 		type: 'object',
 		maxProperties: 1,
