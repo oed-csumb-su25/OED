@@ -296,9 +296,28 @@ BEGIN
 END;
 $$ LANGUAGE 'plpgsql';
 
-
+--Modified to use meter_daily_readings_unit in stead of old daily_readings_unit view.
+--No longer needs to apply conversions since that is done in meter_daily_readings_unit view.
 CREATE MATERIALIZED VIEW IF NOT EXISTS
 group_daily_readings_unit
+	AS SELECT
+		gdm.group_id,
+		sum(dr.reading_rate) AS reading_rate,
+		dr.time_interval,
+		dr.graphic_unit_id
+	
+	FROM meter_daily_readings_unit dr
+	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON dr.graphic_unit_id = gu.graphic_unit_id
+	-- group meter readings of each group on the the same day, of the same graphic unit
+	GROUP BY gdm.group_id, dr.graphic_unit_id, dr.time_interval -- order by time interval instead
+	ORDER BY dr.time_interval, dr.graphic_unit_id, gdm.group_id;
+
+-- Index on interval, graphic_unit_id, group_id
+CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(time_interval, graphic_unit_id, group_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_daily_readings_unit_deprecated
 	AS SELECT
 		gdm.group_id,
 		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
@@ -315,11 +334,27 @@ group_daily_readings_unit
 	GROUP BY gdm.group_id, gu.graphic_unit_id, dr.time_interval -- order by time interval instead
 	ORDER BY dr.time_interval, gu.graphic_unit_id, gdm.group_id;
 
--- Index on interval, graphic_unit_id, group_id
-CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(time_interval, graphic_unit_id, group_id);
-
+--Modified to use meter_hourly_readings_unit in stead of old hourly_readings_unit view.
+--No longer needs to apply conversions since that is done in meter_hourly_readings_unit view.
 CREATE MATERIALIZED VIEW IF NOT EXISTS
 group_hourly_readings_unit
+	AS SELECT
+		gdm.group_id,
+		sum(hr.reading_rate) AS reading_rate,
+		hr.time_interval,
+		hr.graphic_unit_id
+	
+	FROM meter_hourly_readings_unit hr
+	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON hr.graphic_unit_id = gu.graphic_unit_id
+	-- group meter readings of each group on the the same hour, of the same graphic unit
+	GROUP BY gdm.group_id, hr.graphic_unit_id, hr.time_interval
+	ORDER BY gdm.group_id;
+
+CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_hourly_readings_unit_deprecated
 	AS SELECT
 		gdm.group_id,
 		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
@@ -335,8 +370,6 @@ group_hourly_readings_unit
 	-- group meter readings of each group on the the same hour, of the same graphic unit
 	GROUP BY gdm.group_id, gu.graphic_unit_id, hr.time_interval
 	ORDER BY gdm.group_id;
-
-CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
 
 -- Current Working Versions, not dependent on old hourly_readings_unit view, uses a CTE instead
 -- This version only handles 1 conversion per hourly reading
