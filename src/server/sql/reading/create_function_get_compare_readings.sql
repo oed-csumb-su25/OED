@@ -68,7 +68,8 @@ BEGIN
 			SUM(hourly.reading_rate) AS reading
 		FROM meter_hourly_readings_unit hourly
 		WHERE
-			curr_tsrange && hourly.time_interval AND
+			-- The range requested must be completely within the hour so partial hours are not included.
+			curr_tsrange @> hourly.time_interval AND
 			hourly.graphic_unit_id = g_unit_id AND
 			hourly.meter_id = ANY(meter_ids)
 		GROUP BY hourly.meter_id
@@ -79,7 +80,8 @@ BEGIN
 			SUM(hourly.reading_rate) AS reading
 		FROM meter_hourly_readings_unit hourly
 		WHERE
-			prev_tsrange && hourly.time_interval AND
+			-- The range requested must be completely within the hour so partial hours are not included.
+			prev_tsrange @> hourly.time_interval AND
 			hourly.graphic_unit_id = g_unit_id AND
 			hourly.meter_id = ANY(meter_ids)
 		GROUP BY hourly.meter_id

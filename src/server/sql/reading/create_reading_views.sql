@@ -54,7 +54,7 @@ DECLARE
 	readings_max_tsrange TSRANGE;
 BEGIN
 	SELECT tsrange(min(lower(time_interval)), max(upper(time_interval))) INTO readings_max_tsrange
-	FROM daily_readings_unit dr
+	FROM meter_daily_readings_unit dr
 	-- Get all the meter_ids in the passed array of meters.
 	INNER JOIN unnest(meter_ids) meters(id) ON dr.meter_id = meters.id;
 	-- Make the original range be to the day by dropping parts of days at start/end.
@@ -295,81 +295,6 @@ BEGIN
 	RETURN unit_ids;
 END;
 $$ LANGUAGE 'plpgsql';
-
---Modified to use meter_daily_readings_unit in stead of old daily_readings_unit view.
---No longer needs to apply conversions since that is done in meter_daily_readings_unit view.
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_daily_readings_unit
-	AS SELECT
-		gdm.group_id,
-		sum(dr.reading_rate) AS reading_rate,
-		dr.time_interval,
-		dr.graphic_unit_id
-	
-	FROM meter_daily_readings_unit dr
-	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id
-	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON dr.graphic_unit_id = gu.graphic_unit_id
-	-- group meter readings of each group on the the same day, of the same graphic unit
-	GROUP BY gdm.group_id, dr.graphic_unit_id, dr.time_interval -- order by time interval instead
-	ORDER BY dr.time_interval, dr.graphic_unit_id, gdm.group_id;
-
--- Index on interval, graphic_unit_id, group_id
-CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(time_interval, graphic_unit_id, group_id);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_daily_readings_unit_deprecated
-	AS SELECT
-		gdm.group_id,
-		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
-		dr.time_interval,
-		gu.graphic_unit_id AS graphic_unit_id
-	
-	FROM (((((daily_readings_unit dr
-	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id)
-	INNER JOIN meters m ON m.id = dr.meter_id)
-	INNER JOIN units u ON m.unit_id = u.id)
-	INNER JOIN cik c on c.source_id = m.unit_id)
-	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
-	-- group meter readings of each group on the the same day, of the same graphic unit
-	GROUP BY gdm.group_id, gu.graphic_unit_id, dr.time_interval -- order by time interval instead
-	ORDER BY dr.time_interval, gu.graphic_unit_id, gdm.group_id;
-
---Modified to use meter_hourly_readings_unit in stead of old hourly_readings_unit view.
---No longer needs to apply conversions since that is done in meter_hourly_readings_unit view.
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_hourly_readings_unit
-	AS SELECT
-		gdm.group_id,
-		sum(hr.reading_rate) AS reading_rate,
-		hr.time_interval,
-		hr.graphic_unit_id
-	
-	FROM meter_hourly_readings_unit hr
-	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id
-	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON hr.graphic_unit_id = gu.graphic_unit_id
-	-- group meter readings of each group on the the same hour, of the same graphic unit
-	GROUP BY gdm.group_id, hr.graphic_unit_id, hr.time_interval
-	ORDER BY gdm.group_id;
-
-CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_hourly_readings_unit_deprecated
-	AS SELECT
-		gdm.group_id,
-		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
-		hr.time_interval,
-		gu.graphic_unit_id AS graphic_unit_id
-	
-	FROM (((((hourly_readings_unit hr
-	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id)
-	INNER JOIN meters m ON m.id = hr.meter_id)
-	INNER JOIN units u ON m.unit_id = u.id)
-	INNER JOIN cik c on c.source_id = m.unit_id)
-	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
-	-- group meter readings of each group on the the same hour, of the same graphic unit
-	GROUP BY gdm.group_id, gu.graphic_unit_id, hr.time_interval
-	ORDER BY gdm.group_id;
 
 -- Current Working Versions, not dependent on old hourly_readings_unit view, uses a CTE instead
 -- This version only handles 1 conversion per hourly reading
@@ -720,6 +645,81 @@ CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit
 -- GROUP BY r.meter_id, gen.interval_start, r.graphic_unit_id
 -- ORDER BY gen.interval_start, r.meter_id;
 
+--Modified to use meter_daily_readings_unit in stead of old daily_readings_unit view.
+--No longer needs to apply conversions since that is done in meter_daily_readings_unit view.
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_daily_readings_unit
+	AS SELECT
+		gdm.group_id,
+		sum(dr.reading_rate) AS reading_rate,
+		dr.time_interval,
+		dr.graphic_unit_id
+	
+	FROM meter_daily_readings_unit dr
+	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON dr.graphic_unit_id = gu.graphic_unit_id
+	-- group meter readings of each group on the the same day, of the same graphic unit
+	GROUP BY gdm.group_id, dr.graphic_unit_id, dr.time_interval -- order by time interval instead
+	ORDER BY dr.time_interval, dr.graphic_unit_id, gdm.group_id;
+
+-- Index on interval, graphic_unit_id, group_id
+CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(time_interval, graphic_unit_id, group_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_daily_readings_unit_deprecated
+	AS SELECT
+		gdm.group_id,
+		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		dr.time_interval,
+		gu.graphic_unit_id AS graphic_unit_id
+	
+	FROM (((((daily_readings_unit dr
+	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id)
+	INNER JOIN meters m ON m.id = dr.meter_id)
+	INNER JOIN units u ON m.unit_id = u.id)
+	INNER JOIN cik c on c.source_id = m.unit_id)
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
+	-- group meter readings of each group on the the same day, of the same graphic unit
+	GROUP BY gdm.group_id, gu.graphic_unit_id, dr.time_interval -- order by time interval instead
+	ORDER BY dr.time_interval, gu.graphic_unit_id, gdm.group_id;
+
+--Modified to use meter_hourly_readings_unit in stead of old hourly_readings_unit view.
+--No longer needs to apply conversions since that is done in meter_hourly_readings_unit view.
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_hourly_readings_unit
+	AS SELECT
+		gdm.group_id,
+		sum(hr.reading_rate) AS reading_rate,
+		hr.time_interval,
+		hr.graphic_unit_id
+	
+	FROM meter_hourly_readings_unit hr
+	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON hr.graphic_unit_id = gu.graphic_unit_id
+	-- group meter readings of each group on the the same hour, of the same graphic unit
+	GROUP BY gdm.group_id, hr.graphic_unit_id, hr.time_interval
+	ORDER BY gdm.group_id;
+
+CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS
+group_hourly_readings_unit_deprecated
+	AS SELECT
+		gdm.group_id,
+		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
+		hr.time_interval,
+		gu.graphic_unit_id AS graphic_unit_id
+	
+	FROM (((((hourly_readings_unit hr
+	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id)
+	INNER JOIN meters m ON m.id = hr.meter_id)
+	INNER JOIN units u ON m.unit_id = u.id)
+	INNER JOIN cik c on c.source_id = m.unit_id)
+	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
+	-- group meter readings of each group on the the same hour, of the same graphic unit
+	GROUP BY gdm.group_id, gu.graphic_unit_id, hr.time_interval
+	ORDER BY gdm.group_id;
+
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
 It is designed to return data for plotting line graphs. It works on meters.
@@ -840,7 +840,7 @@ DECLARE
 					SUM(
 						--Wrapped in SUM to handle multiple matching cik conversions
 						(r.reading * 3600 / u.sec_in_rate) *
-						-- Weight by conversion duration(intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
+						-- Weight by conversion duration (intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
 						 (EXTRACT(EPOCH FROM (
 							upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 							-
@@ -848,7 +848,6 @@ DECLARE
 		  					)) / 3600)
 						* c.slope + c.intercept
 	  				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
-
 				END AS reading_rate,
 				-- There is no range of values on raw/meter data so return NaN to indicate that.
 				-- The route will return this as null when it shows up in Redux state.
@@ -862,7 +861,7 @@ DECLARE
 				INNER JOIN units u ON m.unit_id = u.id)									
 				INNER JOIN cik c on c.source_id = m.unit_id
 					AND c.destination_id = g_unit_id
-					--The condition below was added for time varying conversions(allows for multiple cik rows to be applied to a single reading)
+					--The condition below was added for time varying conversions (allows for multiple cik rows to be applied to a single reading)
 					--ChatGPT helped with this line, I wasn't sure if the bounds should be inclusive or exclusive.
 					--The cik exclusive bounds '()' ensures no two conversions overlap.
 					AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]'))
