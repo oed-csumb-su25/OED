@@ -9,6 +9,8 @@ Trying to only use case statements led to issues so the following functions
 mix case and if statements.
 */
 
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 /*
 Rounds a timestamp up to the next interval
  */
@@ -61,189 +63,6 @@ BEGIN
 	RETURN tsrange(date_trunc_up('day', lower(tsrange_to_shrink)), date_trunc('day', upper(tsrange_to_shrink))) * readings_max_tsrange;
 END;
 $$ LANGUAGE 'plpgsql';
-
-/*
-	The following views are all generated in src/server/models/Reading.js in createReadingsMaterializedViews.
-	This is necessary because they can't be wrapped in a function (otherwise predicates would not be pushed down).
-*/
-
-/*
-The query shared by all of these views gets slow when one of two things happen:
-	1) It has to scan a large percentage of the readings table
-	2) It has to generate a large number of rows (by compressing to a small interval)
-We pick the best of both worlds by only materializing the large duration tables (day+ and then hour+).
-These produce fewer rows, making them acceptable to store,
-but they benefit from materialization because they require a scan of a large percentage of
-the readings table (to aggregate data over a large time range). The hourly table may not be that much smaller than
-the meter data but it can make it much faster for meters that read at sub-hour intervals so it's worth the
-extra disk space.
-
-The daily and hourly views are used when they give a minimum number of points as specified by the supplied
-parameter. It first tries daily since this is fastest, then hourly and finally uses raw/meter data if necessary.
-The goal is that the number of readings touched is never that large and when doing raw/meter readings the
-time range should be small so the number of readings retrieved is not large. It is assumed that the indices/optimizations
-allow for getting a subset of the raw/meter readings quickly.
- */
-
-/**
-The next two create a view/table that takes the raw/meter readings and averages them for each day or hour.
-This is used by the line graph function below to make them faster since the values
-are already averaged. There are two types of readings: quantity and flow/raw. The quantity
-readings must be normalized by their time length. The flow/raw readings are already by time
-so they are just averaged. The one table contains both types of readings but are now equivalent
-so the line reading functions can use them both in the same way.
- */
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-hourly_readings_unit
-	AS SELECT
-		-- This gives the weighted average of the reading rates, defined as
-		-- sum(reading_rate * overlap_duration) / sum(overlap_duration)
-		r.meter_id AS meter_id,
-		CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			(sum(
-				(r.reading * 3600 / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)))) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-						-
-						greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / sum(
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			))
-		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-			(sum(
-				(r.reading * 3600 / u.sec_in_rate) -- Reading rate in per hour
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / sum(
-					extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-						least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-						-
-						greatest(r.start_timestamp, gen.interval_start)
-					)
-			))
-		END AS reading_rate,
-
-		-- The following code does the min/max for hourly readings
-		CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-    		(max(( -- Extract the maximum rate over each day
-				(r.reading * 3600 / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)))) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			)))
-		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-			(max(( -- For flow and raw data the max/min is per minute, so we multiply the max/min by 24 hrs * 60 min
-				(r.reading * 3600 / u.sec_in_rate) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			)))
-		END as max_rate,
-			
-		CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			(min(( --Extract the minimum rate over each day
-				(r.reading * 3600 / (extract(EPOCH FROM (r.end_timestamp - r.start_timestamp)))) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-						least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-						-
-						greatest(r.start_timestamp, gen.interval_start)
-					)
-			) / (
-					extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-						least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-						-
-						greatest(r.start_timestamp, gen.interval_start)
-					)
-			)))
-		WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
-			(min((
-				(r.reading * 3600 / u.sec_in_rate) -- Reading rate in kw
-				*
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			) / (
-				extract(EPOCH FROM -- The number of seconds that the reading shares with the interval
-					least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
-					-
-					greatest(r.start_timestamp, gen.interval_start)
-				)
-			)))
-		END as min_rate,
-
-	tsrange(gen.interval_start, gen.interval_start + '1 hour'::INTERVAL, '()') AS time_interval
-	FROM ((readings r
-	-- This sequence of joins takes the meter id to its unit and a unit.
-	INNER JOIN meters m ON r.meter_id = m.id)
-	INNER JOIN units u ON m.unit_id = u.id)
-		CROSS JOIN LATERAL generate_series(
-			date_trunc('hour', r.start_timestamp),
-			-- Subtract 1 interval width because generate_series is end-inclusive
-			date_trunc_up('hour', r.end_timestamp) - '1 hour'::INTERVAL,
-			'1 hour'::INTERVAL
-		) gen(interval_start)
-	GROUP BY r.meter_id, gen.interval_start, u.unit_represent
-	-- The order by ensures that the materialized view will be clustered in this way.
-	ORDER BY gen.interval_start, r.meter_id;
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-daily_readings_unit
-	AS SELECT
-		h.meter_id AS meter_id,
-        avg(h.reading_rate) AS reading_rate,
-		max(h.max_rate) AS max_rate,
-		min(h.min_rate) AS min_rate,
-        
-    tsrange(gen.interval_start, gen.interval_start + '1 day'::INTERVAL, '()') AS time_interval
-	FROM ((hourly_readings_unit h
-	INNER JOIN meters m ON h.meter_id = m.id)
-	INNER JOIN units u ON m.unit_id = u.id)
-		CROSS JOIN LATERAL generate_series(
-			date_trunc('day', lower(h.time_interval)),
-			date_trunc_up('day', upper(h.time_interval)) - '1 hour'::INTERVAL,
-			'1 day'::INTERVAL 
-		) gen(interval_start)
-	GROUP BY h.meter_id, gen.interval_start, u.unit_represent
-	ORDER BY gen.interval_start, h.meter_id;
-
--- TODO Check if needed and when to use as not done for hourly.
--- With the index added in 3D readings, this should be consider as part of the decision
--- on if this is needed.
-CREATE EXTENSION IF NOT EXISTS btree_gist;
--- We need a gist index to support the @> operation.
-CREATE INDEX if not exists idx_daily_readings_unit ON daily_readings_unit USING GIST(time_interval, meter_id);
 
 /*
 	The following function takes an integer for group id and return an array of all unit ids which are compatible
@@ -303,45 +122,61 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS meter_hourly_readings_unit
 AS
 WITH base_hourly AS (
 	SELECT
+		-- This gives the weighted average of the reading rates, defined as
+		-- sum(reading_rate * overlap_duration) / sum(overlap_duration)
 		r.meter_id,
 		CASE
 		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
 			(
 			SUM(
+				-- Reading rate in kw
 				(r.reading * 3600 / EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp))) *
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			) /
 			SUM(
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			)
 			)
 		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
 			(
 			SUM(
+				-- Reading rate in per hour
 				(r.reading * 3600 / u.sec_in_rate) *
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			) /
 			SUM(
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			)
 			)
 		END AS reading_rate,
-
+		-- The following code does the min/max for hourly readings
 		CASE
 		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
 			MAX(
+			-- Extract the maximum rate over each day
 			(
+				-- Reading rate in kw
 				(r.reading * 3600 / EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp))) *
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			) /
+			-- The number of seconds that the reading shares with the interval
 			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			)
 		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
+			-- For flow and raw data the max/min is per minute, so we multiply the max/min by 24 hrs * 60 min
 			MAX(
 			(
+				-- Reading rate in kw
 				(r.reading * 3600 / u.sec_in_rate) *
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			) /
+			-- The number of seconds that the reading shares with the interval
 			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			)
 		END AS max_rate,
@@ -349,18 +184,25 @@ WITH base_hourly AS (
 		CASE
 		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
 			MIN(
+			--Extract the minimum rate over each day
 			(
+				-- Reading rate in kw
 				(r.reading * 3600 / EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp))) *
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			) /
+			-- The number of seconds that the reading shares with the interval
 			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			)
 		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
 			MIN(
 			(
+				-- Reading rate in kw
 				(r.reading * 3600 / u.sec_in_rate) *
+				-- The number of seconds that the reading shares with the interval
 				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			) /
+			-- The number of seconds that the reading shares with the interval
 			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
 			)
 		END AS min_rate,
@@ -372,6 +214,7 @@ WITH base_hourly AS (
 	INNER JOIN units u ON m.unit_id = u.id
 	CROSS JOIN LATERAL generate_series(
 		date_trunc('hour', r.start_timestamp),
+		-- Subtract 1 interval width because generate_series is end-inclusive
 		date_trunc_up('hour', r.end_timestamp) - INTERVAL '1 hour',
 		INTERVAL '1 hour'
 	) gen(interval_start)
@@ -394,115 +237,6 @@ ORDER BY meter_id;
 
 -- Used by the line/3d/compare functions.
 CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_unit (meter_id, graphic_unit_id, lower(time_interval));
-
-
--- Is not dependent on old hourly view and handles multiple conversions per reading.
--- This version creates the hourly data (similar to hourly_readings_unit) and then applies the conversion.
--- This version can handle multiple conversions per reading that vary in length and/or overlap the readings time interval... in these scenarios the converted min/max values may in inaccurate.
-CREATE MATERIALIZED VIEW IF NOT EXISTS meter_hourly_readings_unit_v2
-AS
-WITH base_hourly AS (
-	SELECT
-		r.meter_id,
-		CASE
-		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			(
-			SUM(
-				(r.reading * 3600 / EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp))) *
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			) /
-			SUM(
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			)
-			)
-		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
-			(
-			SUM(
-				(r.reading * 3600 / u.sec_in_rate) *
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			) /
-			SUM(
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			)
-			)
-		END AS reading_rate,
-
-		CASE
-		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			MAX(
-			(
-				(r.reading * 3600 / EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp))) *
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			) /
-			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			)
-		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
-			MAX(
-			(
-				(r.reading * 3600 / u.sec_in_rate) *
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			) /
-			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			)
-		END AS max_rate,
-
-		CASE
-		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
-			MIN(
-			(
-				(r.reading * 3600 / EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp))) *
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			) /
-			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			)
-		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
-			MIN(
-			(
-				(r.reading * 3600 / u.sec_in_rate) *
-				EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			) /
-			EXTRACT(EPOCH FROM LEAST(r.end_timestamp, gen.interval_start + INTERVAL '1 hour') - GREATEST(r.start_timestamp, gen.interval_start))
-			)
-		END AS min_rate,
-
-		tsrange(gen.interval_start, gen.interval_start + INTERVAL '1 hour', '()') AS time_interval
-
-	FROM readings r
-	INNER JOIN meters m ON r.meter_id = m.id
-	INNER JOIN units u ON m.unit_id = u.id
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('hour', r.start_timestamp),
-		date_trunc_up('hour', r.end_timestamp) - INTERVAL '1 hour',
-		INTERVAL '1 hour'
-	) gen(interval_start)
-	GROUP BY r.meter_id, gen.interval_start, u.unit_represent
-)
-SELECT
-  	bh.meter_id,
-	(
-		bh.reading_rate * SUM(
-		(EXTRACT(EPOCH FROM (
-			upper(tsrange(c.start_time, c.end_time, '()') * tsrange(lower(bh.time_interval), upper(bh.time_interval), '[]'))
-			-
-			lower(tsrange(c.start_time, c.end_time, '()') * tsrange(lower(bh.time_interval), upper(bh.time_interval), '[]'))
-		)) / 3600)
-		* c.slope + c.intercept)
-	) AS reading_rate,
-	MIN(bh.min_rate * c.slope + c.intercept) AS min_rate,
-  	MAX(bh.max_rate * c.slope + c.intercept) AS max_rate,
-  	bh.time_interval,
-  	c.destination_id AS graphic_unit_id
-
-FROM base_hourly bh
-INNER JOIN meters m ON m.id = bh.meter_id
-INNER JOIN units u ON m.unit_id = u.id
-INNER JOIN cik c ON c.source_id = m.unit_id AND tsrange(c.start_time, c.end_time, '()') && bh.time_interval
-GROUP BY bh.meter_id, bh.time_interval, c.destination_id, bh.reading_rate, bh.min_rate, bh.max_rate
-ORDER BY bh.meter_id, c.destination_id, bh.time_interval;
-
--- Used by the line/3d/compare functions.
-CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_unit_v2 (meter_id, graphic_unit_id, lower(time_interval));
-
 
 -- Current working version. Retrieves converted data from meter_hourly_readings_unit and averages it to the day.
 CREATE MATERIALIZED VIEW IF NOT EXISTS 
@@ -529,122 +263,6 @@ CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit
 -- This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
 -- CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); 
 
-
--- Converts and stores all raw data with all applicable conversions.
--- Not currently used, line function uses similar logic to compute conversions on-the-fly.
--- CREATE MATERIALIZED VIEW IF NOT EXISTS
--- meter_raw_readings_unit
--- AS SELECT
--- 	r.meter_id,
--- 	-- Time-weighted conversion applied directly to the reading
--- 	CASE
--- 		WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
--- 			-- Normalize quantity to rate, apply weighted conversion
--- 			(
--- 				(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)) *
--- 				SUM(
--- 					(EXTRACT(EPOCH FROM (
--- 						upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
--- 						lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
--- 					)) / 3600) * c.slope + c.intercept
--- 				)
--- 			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
--- 		WHEN u.unit_represent IN ('flow'::unit_represent_type, 'raw'::unit_represent_type) THEN
--- 			-- Normalize to per hour, apply weighted conversion
--- 			SUM(
--- 				(r.reading * 3600 / u.sec_in_rate) *
--- 				(EXTRACT(EPOCH FROM (
--- 					upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]')) -
--- 					lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
--- 				)) / 3600) * c.slope + c.intercept
--- 			) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
--- 	END AS reading_rate,
--- 	r.start_timestamp,
--- 	r.end_timestamp,
--- 	c.destination_id AS graphic_unit_id
-
--- FROM readings r
--- INNER JOIN meters m ON r.meter_id = m.id
--- INNER JOIN units u ON m.unit_id = u.id
--- INNER JOIN cik c 
--- 	ON c.source_id = m.unit_id
--- 	AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]')
--- GROUP BY r.meter_id, c.destination_id, r.start_timestamp, r.end_timestamp, r.reading, u.unit_represent
--- ORDER BY r.meter_id, r.start_timestamp, r.end_timestamp, c.destination_id;
-
--- Uses the converted raw data from meter_raw_readings_unit to calculate converted hourly readings.
--- Does not work properly when a raw reading is greater than 1 hour.
--- CREATE MATERIALIZED VIEW IF NOT EXISTS
--- meter_hourly_readings_unit_uses_raw
--- 	AS SELECT
--- 		r.meter_id AS meter_id,
--- 		(sum(
--- 			(r.reading_rate)
--- 			*
--- 			-- The number of seconds that the reading shares with the interval
--- 			extract(EPOCH FROM
--- 				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
--- 				-
--- 				greatest(r.start_timestamp, gen.interval_start)
--- 			)
--- 		) / 
--- 		sum(
--- 			-- The number of seconds that the reading shares with the interval
--- 			extract(EPOCH FROM
--- 				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
--- 				-
--- 				greatest(r.start_timestamp, gen.interval_start)
--- 			)
--- 		)) AS reading_rate,
--- 		(max((
--- 			(r.reading_rate)
--- 			*
--- 			-- The number of seconds that the reading shares with the interval
--- 			extract(EPOCH FROM
--- 				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
--- 				-
--- 				greatest(r.start_timestamp, gen.interval_start)
--- 			)
--- 			) / (
--- 			-- The number of seconds that the reading shares with the interval
--- 			extract(EPOCH FROM
--- 				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
--- 				-
--- 				greatest(r.start_timestamp, gen.interval_start)
--- 			)
--- 		))) as max_rate,
--- 		(min((
--- 			(r.reading_rate)
--- 			*
--- 			-- The number of seconds that the reading shares with the interval
--- 			extract(EPOCH FROM
--- 				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
--- 				-
--- 				greatest(r.start_timestamp, gen.interval_start)
--- 			)
--- 			) / (
--- 			-- The number of seconds that the reading shares with the interval
--- 			extract(EPOCH FROM
--- 				least(r.end_timestamp, gen.interval_start + '1 hour'::INTERVAL)
--- 				-
--- 				greatest(r.start_timestamp, gen.interval_start)
--- 				)
--- 			))) as min_rate,
--- 	tsrange(gen.interval_start, gen.interval_start + '1 hour'::INTERVAL, '()') AS time_interval,
--- 	r.graphic_unit_id AS graphic_unit_id
-
--- FROM ((meter_raw_readings_unit r
--- INNER JOIN meters m ON r.meter_id = m.id)
--- INNER JOIN units u ON m.unit_id = u.id)
--- 	CROSS JOIN LATERAL generate_series(
--- 		date_trunc('hour', r.start_timestamp),
--- 		-- Subtract 1 interval width because generate_series is end-inclusive
--- 		date_trunc_up('hour', r.end_timestamp) - '1 hour'::INTERVAL,
--- 		'1 hour'::INTERVAL
--- 	) gen(interval_start)
--- GROUP BY r.meter_id, gen.interval_start, r.graphic_unit_id
--- ORDER BY gen.interval_start, r.meter_id;
-
 --Modified to use meter_daily_readings_unit in stead of old daily_readings_unit view.
 --No longer needs to apply conversions since that is done in meter_daily_readings_unit view.
 CREATE MATERIALIZED VIEW IF NOT EXISTS
@@ -659,29 +277,12 @@ group_daily_readings_unit
 	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id
 	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON dr.graphic_unit_id = gu.graphic_unit_id
 	-- group meter readings of each group on the the same day, of the same graphic unit
-	GROUP BY gdm.group_id, dr.graphic_unit_id, dr.time_interval -- order by time interval instead
+	GROUP BY gdm.group_id, dr.graphic_unit_id, dr.time_interval
+	-- order by time interval instead
 	ORDER BY dr.time_interval, dr.graphic_unit_id, gdm.group_id;
 
 -- Index on interval, graphic_unit_id, group_id
 CREATE INDEX if not exists idx_group_daily_readings_unit ON group_daily_readings_unit USING GIST(time_interval, graphic_unit_id, group_id);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_daily_readings_unit_deprecated
-	AS SELECT
-		gdm.group_id,
-		sum(dr.reading_rate  * c.slope + c.intercept) AS reading_rate,
-		dr.time_interval,
-		gu.graphic_unit_id AS graphic_unit_id
-	
-	FROM (((((daily_readings_unit dr
-	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id)
-	INNER JOIN meters m ON m.id = dr.meter_id)
-	INNER JOIN units u ON m.unit_id = u.id)
-	INNER JOIN cik c on c.source_id = m.unit_id)
-	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
-	-- group meter readings of each group on the the same day, of the same graphic unit
-	GROUP BY gdm.group_id, gu.graphic_unit_id, dr.time_interval -- order by time interval instead
-	ORDER BY dr.time_interval, gu.graphic_unit_id, gdm.group_id;
 
 --Modified to use meter_hourly_readings_unit in stead of old hourly_readings_unit view.
 --No longer needs to apply conversions since that is done in meter_hourly_readings_unit view.
@@ -702,24 +303,6 @@ group_hourly_readings_unit
 
 CREATE INDEX if not exists idx_group_hourly_readings_unit ON group_hourly_readings_unit USING GIST(time_interval, group_id, graphic_unit_id);
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS
-group_hourly_readings_unit_deprecated
-	AS SELECT
-		gdm.group_id,
-		sum(hr.reading_rate  * c.slope + c.intercept) AS reading_rate,
-		hr.time_interval,
-		gu.graphic_unit_id AS graphic_unit_id
-	
-	FROM (((((hourly_readings_unit hr
-	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id)
-	INNER JOIN meters m ON m.id = hr.meter_id)
-	INNER JOIN units u ON m.unit_id = u.id)
-	INNER JOIN cik c on c.source_id = m.unit_id)
-	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON c.destination_id = gu.graphic_unit_id)
-	-- group meter readings of each group on the the same hour, of the same graphic unit
-	GROUP BY gdm.group_id, gu.graphic_unit_id, hr.time_interval
-	ORDER BY gdm.group_id;
-
 /*
 The following function determines the correct duration view to query from, and returns averaged or raw reading from it.
 It is designed to return data for plotting line graphs. It works on meters.
@@ -737,7 +320,7 @@ Details on how this function works can be found in the devDocs in the resource g
 CREATE OR REPLACE FUNCTION meter_line_readings_unit (
 	meter_ids INTEGER[],
 	-- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
-	g_unit_id INTEGER,
+	passed_graphic_unit_id INTEGER,
 	start_stamp TIMESTAMP,
 	end_stamp TIMESTAMP,
 	point_accuracy reading_line_accuracy,
@@ -758,7 +341,6 @@ DECLARE
 	current_meter_id INTEGER;
 	-- Holds accuracy for current meter.
 	current_point_accuracy reading_line_accuracy;
-	g_unit_id INTEGER := g_unit_id;
 	BEGIN
 	-- For each frequency of points, verify that you will get the minimum graphing points to use for each meter.
 	-- Start with the raw, then hourly and then daily if others will not work.
@@ -860,7 +442,7 @@ DECLARE
 				INNER JOIN meters m ON m.id = current_meter_id)
 				INNER JOIN units u ON m.unit_id = u.id)									
 				INNER JOIN cik c on c.source_id = m.unit_id
-					AND c.destination_id = g_unit_id
+					AND c.destination_id = passed_graphic_unit_id
 					--The condition below was added for time varying conversions (allows for multiple cik rows to be applied to a single reading)
 					--ChatGPT helped with this line, I wasn't sure if the bounds should be inclusive or exclusive.
 					--The cik exclusive bounds '()' ensures no two conversions overlap.
@@ -892,7 +474,7 @@ DECLARE
 				WHERE
 					requested_range @> hourly.time_interval
 					AND hourly.meter_id = current_meter_id
-					AND hourly.graphic_unit_id = g_unit_id
+					AND hourly.graphic_unit_id = passed_graphic_unit_id
 				ORDER BY
 					start_timestamp ASC;
 		ELSE
@@ -910,7 +492,7 @@ DECLARE
 				WHERE
 					requested_range @> daily.time_interval
 					AND daily.meter_id = current_meter_id
-					AND daily.graphic_unit_id = g_unit_id
+					AND daily.graphic_unit_id = passed_graphic_unit_id
 				ORDER BY 
 					start_timestamp ASC;
 		END IF;
@@ -1051,7 +633,7 @@ end_timestamp: The end timestamp of the data to return.
 -- New version of meter_bar_readings_unit that uses the new meter_daily_readings_unit view.
 CREATE OR REPLACE FUNCTION meter_bar_readings_unit (
 	meter_ids INTEGER[],
-	g_unit_id INTEGER, -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
+	passed_graphic_unit_id INTEGER, -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
 	bar_width_days INTEGER,
 	start_stamp TIMESTAMP,
 	end_stamp TIMESTAMP
@@ -1113,7 +695,7 @@ BEGIN
 		INNER JOIN unnest(meter_ids) meters(id) ON mdr.meter_id = meters.id
 		INNER JOIN meters m ON m.id = meters.id
 		INNER JOIN units u ON m.unit_id = u.id AND u.unit_represent != 'raw'::unit_represent_type
-		WHERE mdr.graphic_unit_id = g_unit_id
+		WHERE mdr.graphic_unit_id = passed_graphic_unit_id
 		GROUP BY mdr.meter_id, bars.interval_start;
 
 END;

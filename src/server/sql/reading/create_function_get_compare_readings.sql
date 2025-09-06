@@ -46,7 +46,7 @@ shift: How far back in time to shift the curr_start and curr_end date/time to ge
 CREATE OR REPLACE FUNCTION meter_compare_readings_unit (
 	meter_ids INTEGER[],
 	-- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
-	g_unit_id INTEGER,
+	passed_graphic_unit_id INTEGER,
 	curr_start TIMESTAMP,
 	curr_end TIMESTAMP,
 	shift INTERVAL
@@ -70,7 +70,7 @@ BEGIN
 		WHERE
 			-- The range requested must be completely within the hour so partial hours are not included.
 			curr_tsrange @> hourly.time_interval AND
-			hourly.graphic_unit_id = g_unit_id AND
+			hourly.graphic_unit_id = passed_graphic_unit_id AND
 			hourly.meter_id = ANY(meter_ids)
 		GROUP BY hourly.meter_id
 	),
@@ -82,7 +82,7 @@ BEGIN
 		WHERE
 			-- The range requested must be completely within the hour so partial hours are not included.
 			prev_tsrange @> hourly.time_interval AND
-			hourly.graphic_unit_id = g_unit_id AND
+			hourly.graphic_unit_id = passed_graphic_unit_id AND
 			hourly.meter_id = ANY(meter_ids)
 		GROUP BY hourly.meter_id
 	)

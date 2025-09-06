@@ -3,11 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  */
 
--- By indexing both columns together, the database can efficiently handle queries that involve both meter_id and time_interval.
--- Created to support the usage of the view by 3d.
-CREATE INDEX IF NOT EXISTS idx_hourly_readings_unit_meter_time
-ON hourly_readings_unit (meter_id, lower(time_interval));
-
 /*
 This takes tsrange_to_shrink which is the requested time range to plot and makes sure it does
 not exceed the start/end times for the readings in the supplied meter. This can be an issue, in particular,
@@ -37,7 +32,7 @@ CREATE OR REPLACE FUNCTION meter_3d_readings_unit (
     meter_ids_requested INTEGER[],
     -- The desired graphic unit of the returned data
     -- This is the graphic unit id, changed from graphic_unit_id to avoid confusion with the graphic unit id in the view.
-    g_unit_id INTEGER,
+    passed_graphic_unit_id INTEGER,
     -- The start/end time for the data to return
     start_stamp TIMESTAMP,
     end_stamp TIMESTAMP,
@@ -128,7 +123,7 @@ BEGIN
                 meter_hourly_readings_unit mhr
                 -- Only want the desired meter
                 WHERE mhr.meter_id = current_meter_id
-                AND mhr.graphic_unit_id = g_unit_id
+                AND mhr.graphic_unit_id = passed_graphic_unit_id
                 -- Only want readings that lie within this slice of the desired data
                 AND lower(mhr.time_interval) >= hours.hour
                 AND upper(mhr.time_interval) <= hours.hour + reading_length_interval
