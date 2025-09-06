@@ -79,7 +79,7 @@ DECLARE
 	unit_ids INTEGER[] := '{}';
 	unit_id INTEGER;
 	curr_src_id INTEGER;
-	
+
 BEGIN
 	-- get the units of all child meters in group
 	SELECT array_agg(DISTINCT m.unit_id) INTO child_meters_unit_ids
@@ -89,11 +89,11 @@ BEGIN
 
 	-- get all possible destination units
 	SELECT array_agg(u.id) INTO dest_ids
-	FROM units u JOIN cik c 
-	ON u.id = c.destination_id; 
+	FROM units u JOIN cik c
+	ON u.id = c.destination_id;
 
-	-- determine the compatible unit by checking if the array of all corresponding source unit 
-	-- to a destination unit contains all child meters' units 
+	-- determine the compatible unit by checking if the array of all corresponding source unit
+	-- to a destination unit contains all child meters' units
 	FOREACH unit_id IN ARRAY dest_ids
 	LOOP
 		BEGIN
@@ -102,14 +102,14 @@ BEGIN
 
 	 		-- append each compatible unit id once into array
 			IF src_ids @> child_meters_unit_ids
-			THEN 
+			THEN
 				IF NOT (unit_id = ANY (unit_ids))
 				THEN
 					unit_ids := array_append(unit_ids, unit_id);
 				END IF;
 			END IF;
 		END;
-    END LOOP;
+	END LOOP;
 
 	RETURN unit_ids;
 END;
@@ -239,15 +239,15 @@ ORDER BY meter_id;
 CREATE INDEX if not exists idx_meter_hourly_ordering ON meter_hourly_readings_unit (meter_id, graphic_unit_id, lower(time_interval));
 
 -- Current working version. Retrieves converted data from meter_hourly_readings_unit and averages it to the day.
-CREATE MATERIALIZED VIEW IF NOT EXISTS 
+CREATE MATERIALIZED VIEW IF NOT EXISTS
 meter_daily_readings_unit
 	AS SELECT
-    h.meter_id AS meter_id,
-    avg(h.reading_rate) AS reading_rate,
-    min(h.min_rate) AS min_rate,
-    max(h.max_rate) AS max_rate,
-    tsrange(gen.interval_start, gen.interval_start + INTERVAL '1 day', '()') AS time_interval,
-    h.graphic_unit_id AS graphic_unit_id
+	h.meter_id AS meter_id,
+	AVG(h.reading_rate) AS reading_rate,
+	MIN(h.min_rate) AS min_rate,
+	MAX(h.max_rate) AS max_rate,
+	tsrange(gen.interval_start, gen.interval_start + INTERVAL '1 day', '()') AS time_interval,
+	h.graphic_unit_id AS graphic_unit_id
 
 	FROM meter_hourly_readings_unit h
 	CROSS JOIN LATERAL generate_series(
@@ -261,7 +261,7 @@ meter_daily_readings_unit
  -- Used by the line/bar/compare functions.
 CREATE INDEX if not exists idx_meter_daily_ordering ON meter_daily_readings_unit (meter_id, graphic_unit_id, lower(time_interval));
 -- This index sometimes performs faster(for the bar function) than the above index but is likely not worth the additional overhead.
--- CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id); 
+-- CREATE INDEX if not exists idx_mdr_meter_graphic ON meter_daily_readings_unit (meter_id, graphic_unit_id);
 
 --Modified to use meter_daily_readings_unit in stead of old daily_readings_unit view.
 --No longer needs to apply conversions since that is done in meter_daily_readings_unit view.
@@ -269,10 +269,10 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS
 group_daily_readings_unit
 	AS SELECT
 		gdm.group_id,
-		sum(dr.reading_rate) AS reading_rate,
+		SUM(dr.reading_rate) AS reading_rate,
 		dr.time_interval,
 		dr.graphic_unit_id
-	
+
 	FROM meter_daily_readings_unit dr
 	INNER JOIN groups_deep_meters gdm ON dr.meter_id = gdm.meter_id
 	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON dr.graphic_unit_id = gu.graphic_unit_id
@@ -290,10 +290,10 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS
 group_hourly_readings_unit
 	AS SELECT
 		gdm.group_id,
-		sum(hr.reading_rate) AS reading_rate,
+		SUM(hr.reading_rate) AS reading_rate,
 		hr.time_interval,
 		hr.graphic_unit_id
-	
+
 	FROM meter_hourly_readings_unit hr
 	INNER JOIN groups_deep_meters gdm ON hr.meter_id = gdm.meter_id
 	INNER JOIN unnest(get_graphic_unit(gdm.group_id)) AS gu(graphic_unit_id) ON hr.graphic_unit_id = gu.graphic_unit_id
@@ -406,16 +406,16 @@ DECLARE
 					-- the 3600 is needed since EPOCH is in seconds.
 					(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600))
 					-- Normalize to rate over reading interval
-					* SUM(									
+					* SUM(
 						--Wrapped in SUM to handle multiple matching cik conversions
 						-- Weight by conversion duration(intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
-        				 (EXTRACT(EPOCH FROM (
-            				upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
-            				-
-            				lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
-          					)) / 3600)
-        				* c.slope + c.intercept
-      				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
+						 (EXTRACT(EPOCH FROM (
+							upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+							-
+							lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
+		  					)) / 3600)
+						* c.slope + c.intercept
+	  				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
 				WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
 					-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
 					-- to per hour.
@@ -440,11 +440,10 @@ DECLARE
 
 				FROM (((readings r
 				INNER JOIN meters m ON m.id = current_meter_id)
-				INNER JOIN units u ON m.unit_id = u.id)									
+				INNER JOIN units u ON m.unit_id = u.id)
 				INNER JOIN cik c on c.source_id = m.unit_id
 					AND c.destination_id = passed_graphic_unit_id
 					--The condition below was added for time varying conversions (allows for multiple cik rows to be applied to a single reading)
-					--ChatGPT helped with this line, I wasn't sure if the bounds should be inclusive or exclusive.
 					--The cik exclusive bounds '()' ensures no two conversions overlap.
 					AND tsrange(c.start_time, c.end_time, '()') && tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 				WHERE lower(requested_range) <= r.start_timestamp AND r.end_timestamp <= upper(requested_range) AND r.meter_id = current_meter_id
@@ -493,7 +492,7 @@ DECLARE
 					requested_range @> daily.time_interval
 					AND daily.meter_id = current_meter_id
 					AND daily.graphic_unit_id = passed_graphic_unit_id
-				ORDER BY 
+				ORDER BY
 					start_timestamp ASC;
 		END IF;
 		current_meter_index := current_meter_index + 1;
@@ -591,7 +590,6 @@ BEGIN
 		RETURN QUERY
 			SELECT
 				readings.group_id,
-				readings.reading_rate,
 				lower(readings.time_interval) AS start_timestamp,
 				upper(readings.time_interval) AS end_timestamp
 
@@ -679,7 +677,7 @@ BEGIN
 	real_end_stamp := real_end_stamp - bar_width;
 
 	RAISE NOTICE 'real_start_stamp: %, real_end_stamp: %, num_bars: %',
-    real_start_stamp, real_end_stamp, num_bars;
+	real_start_stamp, real_end_stamp, num_bars;
 
 	RETURN QUERY
 		SELECT
@@ -769,7 +767,7 @@ BEGIN
 			INNER JOIN units u ON readings.graphic_unit_id = u.id AND u.unit_represent != 'raw'::unit_represent_type)
 			INNER JOIN unnest(group_ids) gids(id) ON readings.group_id = gids.id)
 			-- Use the readings in the passed in graphic unit
-			WHERE readings.graphic_unit_id = requested_graphic_unit_id 
+			WHERE readings.graphic_unit_id = requested_graphic_unit_id
 
 			GROUP BY readings.group_id, bars.interval_start;
 END;
