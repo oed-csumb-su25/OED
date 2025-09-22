@@ -16,7 +16,7 @@ DECLARE
 	readings_max_tsrange TSRANGE;
 BEGIN
 	SELECT tsrange(min(lower(time_interval)), max(upper(time_interval))) INTO readings_max_tsrange
-	FROM daily_readings_unit
+	FROM meter_daily_readings_unit
 	where meter_id = meter_id_desired;
 	RETURN tsrange_to_shrink * readings_max_tsrange;
 END;

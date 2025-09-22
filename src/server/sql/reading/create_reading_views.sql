@@ -404,9 +404,8 @@ DECLARE
 				CASE WHEN u.unit_represent = 'quantity'::unit_represent_type THEN
 					-- If it is quantity readings then need to convert to rate per hour by dividing by the time length where
 					-- the 3600 is needed since EPOCH is in seconds.
-					(r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600))
 					-- Normalize to rate over reading interval
-					* SUM(
+					 SUM(
 						--Wrapped in SUM to handle multiple matching cik conversions
 						-- Weight by conversion duration(intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
 						 (EXTRACT(EPOCH FROM (
@@ -414,21 +413,20 @@ DECLARE
 							-
 							lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 		  					)) / 3600)
-						* c.slope + c.intercept
+						* (c.slope * (r.reading / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600))+ c.intercept)
 	  				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
 				WHEN (u.unit_represent = 'flow'::unit_represent_type OR u.unit_represent = 'raw'::unit_represent_type) THEN
 					-- If it is flow or raw readings then it is already a rate so just convert it but also need to normalize
 					-- to per hour.
 					SUM(
 						--Wrapped in SUM to handle multiple matching cik conversions
-						(r.reading * 3600 / u.sec_in_rate) *
 						-- Weight by conversion duration (intersection of reading and conversion time ranges is necessary because the conversion may overlap the reading time range)
 						 (EXTRACT(EPOCH FROM (
 							upper(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 							-
 							lower(tsrange(c.start_time, c.end_time, '()') * tsrange(r.start_timestamp, r.end_timestamp, '[]'))
 		  					)) / 3600)
-						* c.slope + c.intercept
+						* (c.slope * (r.reading * 3600 / u.sec_in_rate) + c.intercept)
 	  				) / (EXTRACT(EPOCH FROM (r.end_timestamp - r.start_timestamp)) / 3600)
 				END AS reading_rate,
 				-- There is no range of values on raw/meter data so return NaN to indicate that.
@@ -590,6 +588,7 @@ BEGIN
 		RETURN QUERY
 			SELECT
 				readings.group_id,
+				readings.reading_rate,
 				lower(readings.time_interval) AS start_timestamp,
 				upper(readings.time_interval) AS end_timestamp
 
